@@ -121,7 +121,8 @@ export function StoreProvider({ children }) {
       if (savedUsers) {
         let parsedUsers = JSON.parse(savedUsers).map(u => ({
           ...u,
-          role: u.role || 'user'
+          role: u.role || 'user',
+          status: u.status || 'approved'
         }));
         setUsers(parsedUsers);
         localStorage.setItem('aiyra_users', JSON.stringify(parsedUsers));
@@ -254,18 +255,14 @@ export function StoreProvider({ children }) {
       password: password.trim(),
       address: address.trim(),
       role: role === 'reseller' ? 'reseller' : 'user',
+      status: 'pending', // Menunggu persetujuan (approval) dari admin
       registeredAt: new Date().toISOString()
     };
 
     const updatedUsers = [...users, newUser];
     updateUsersState(updatedUsers);
 
-    // Auto login registered user
-    setCurrentUser(newUser);
-    try {
-      localStorage.setItem('aiyra_current_user', JSON.stringify(newUser));
-    } catch (e) {}
-
+    // Akun baru TIDAK langsung login, harus menunggu approval admin
     // Send to Google Spreadsheet Web App (if Script URL is set)
     if (settings.googleScriptUrl) {
       sendToGoogleAppsScript(settings.googleScriptUrl, {
@@ -274,7 +271,37 @@ export function StoreProvider({ children }) {
       });
     }
 
-    return { success: true, user: newUser };
+    return {
+      success: true,
+      pendingApproval: true,
+      message: 'Pendaftaran berhasil! Akun Anda sedang menunggu persetujuan (Approval) dari Admin sebelum dapat masuk.',
+      user: newUser
+    };
+  };
+
+  const approveUser = (userId, roleOverride) => {
+    const updated = users.map((u) => {
+      if (u.id === userId) {
+        return {
+          ...u,
+          status: 'approved',
+          role: roleOverride || u.role || 'user'
+        };
+      }
+      return u;
+    });
+    updateUsersState(updated);
+  };
+
+  const rejectUser = (userId) => {
+    const updated = users.map((u) => (u.id === userId ? { ...u, status: 'rejected' } : u));
+    updateUsersState(updated);
+    if (currentUser && currentUser.id === userId) {
+      setCurrentUser(null);
+      try {
+        localStorage.removeItem('aiyra_current_user');
+      } catch (e) {}
+    }
   };
 
   const updateUserRole = (userId, newRole) => {
@@ -311,7 +338,24 @@ export function StoreProvider({ children }) {
     });
 
     if (found) {
-      const userWithRole = { ...found, role: found.role || 'user' };
+      const userStatus = found.status || 'approved';
+
+      if (userStatus === 'pending') {
+        return {
+          success: false,
+          pendingApproval: true,
+          message: 'Akun Anda masih Menunggu Persetujuan (Approval) dari Admin. Silakan hubungi Admin toko untuk verifikasi akun Anda.'
+        };
+      }
+
+      if (userStatus === 'rejected') {
+        return {
+          success: false,
+          message: 'Pendaftaran akun Anda tidak disetujui oleh Admin. Silakan hubungi Admin toko untuk informasi lebih lanjut.'
+        };
+      }
+
+      const userWithRole = { ...found, role: found.role || 'user', status: 'approved' };
       setCurrentUser(userWithRole);
       try {
         localStorage.setItem('aiyra_current_user', JSON.stringify(userWithRole));
@@ -611,6 +655,8 @@ export function StoreProvider({ children }) {
         syncFromGoogleSheets,
         // User Auth Actions
         registerUser,
+        approveUser,
+        rejectUser,
         updateUserRole,
         deleteUser,
         loginUser,

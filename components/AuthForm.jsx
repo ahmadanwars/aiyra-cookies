@@ -12,7 +12,9 @@ import {
   Sparkles,
   ShieldCheck,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Clock,
+  MessageCircle
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -34,12 +36,16 @@ export default function AuthForm() {
   // Error & Status feedback
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [pendingNotice, setPendingNotice] = useState(null);
+
+  const cleanAdminWa = (settings.adminWhatsApp || '6281234567890').replace(/[^0-9]/g, '');
 
   // Handle Login Submit
   const handleLoginSubmit = (e) => {
     e.preventDefault();
     setErrorMessage('');
     setSuccessMessage('');
+    setPendingNotice(null);
 
     if (!loginPhone.trim() || !loginPassword.trim()) {
       setErrorMessage('Nomor WhatsApp dan Password wajib diisi.');
@@ -50,7 +56,15 @@ export default function AuthForm() {
     if (res.success) {
       setSuccessMessage(`Selamat datang kembali, ${res.user.fullName}!`);
     } else {
-      setErrorMessage(res.message);
+      if (res.pendingApproval) {
+        setPendingNotice({
+          type: 'login',
+          phone: loginPhone,
+          message: res.message
+        });
+      } else {
+        setErrorMessage(res.message);
+      }
     }
   };
 
@@ -59,6 +73,7 @@ export default function AuthForm() {
     e.preventDefault();
     setErrorMessage('');
     setSuccessMessage('');
+    setPendingNotice(null);
 
     if (!regFullName.trim()) {
       setErrorMessage('Nama Lengkap wajib diisi.');
@@ -85,7 +100,19 @@ export default function AuthForm() {
       role: regRole
     });
 
-    if (res.success) {
+    if (res.success && res.pendingApproval) {
+      setPendingNotice({
+        type: 'register',
+        name: regFullName,
+        phone: regPhone,
+        role: regRole,
+        message: res.message
+      });
+      setRegFullName('');
+      setRegPhone('');
+      setRegPassword('');
+      setRegAddress('');
+    } else if (res.success) {
       setSuccessMessage('Pendaftaran berhasil! Mengalihkan ke katalog...');
     } else {
       setErrorMessage(res.message);
@@ -146,15 +173,52 @@ export default function AuthForm() {
         </div>
 
         {/* Feedback Alert Messages */}
-        <div className="px-6 pt-4">
+        <div className="px-6 pt-4 space-y-2">
+          {pendingNotice && (
+            <div className="p-4 bg-amber-50/90 border border-amber-300 rounded-2xl text-amber-950 space-y-2.5 text-xs shadow-xs animate-fade-in">
+              <div className="flex items-center gap-2 font-bold text-amber-900">
+                <Clock className="w-4 h-4 text-amber-600 animate-pulse shrink-0" />
+                <span>Akun Menunggu Persetujuan (Approval) Admin</span>
+              </div>
+              <p className="text-neutral-600 text-[11px] leading-relaxed">
+                {pendingNotice.message || 'Pendaftaran akun Anda telah tercatat dan sedang menunggu verifikasi serta persetujuan dari Admin toko kami agar harga grosir/reseller terlindungi dengan aman.'}
+              </p>
+              <div className="pt-1 flex flex-wrap items-center gap-2">
+                <a
+                  href={`https://wa.me/${cleanAdminWa}?text=${encodeURIComponent(
+                    `Halo Admin Aiyra Cookies, saya baru saja mendaftar akun (${pendingNotice.phone || loginPhone}). Mohon bantuannya untuk approval/aktivasi akun saya. Terima kasih!`
+                  )}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-xl text-xs shadow-xs transition"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  <span>Konfirmasi ke Admin via WhatsApp</span>
+                </a>
+                {pendingNotice.type === 'register' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('login');
+                      setLoginPhone(pendingNotice.phone);
+                    }}
+                    className="text-xs text-cookie-800 underline font-semibold px-2 py-1"
+                  >
+                    Buka Tab Masuk
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           {errorMessage && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-2xl text-red-700 text-xs flex items-center gap-2">
+            <div className="p-3 bg-red-50 border border-red-200 rounded-2xl text-red-700 text-xs flex items-center gap-2 animate-fade-in">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{errorMessage}</span>
             </div>
           )}
           {successMessage && (
-            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-800 text-xs flex items-center gap-2">
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-800 text-xs flex items-center gap-2 animate-fade-in">
               <CheckCircle2 className="w-4 h-4 shrink-0" />
               <span>{successMessage}</span>
             </div>
