@@ -261,13 +261,6 @@ export default function WaitingListModal() {
                         : order.itemsSummary || '-'}
                     </span>
                   </div>
-
-                  <div className="text-right shrink-0">
-                    <span className="text-[11px] text-neutral-400">Total: </span>
-                    <span className="font-bold text-cookie-800 text-sm">
-                      {formatRupiah(order.totalPrice)}
-                    </span>
-                  </div>
                 </div>
 
                 {/* Status Notice */}
