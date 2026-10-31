@@ -94,14 +94,17 @@ export function StoreProvider({ children }) {
       // Load orders (sanitize timestamp by real order.date/createdAt)
       const savedOrders = localStorage.getItem('aiyra_orders');
       if (savedOrders) {
-        const parsedOrders = JSON.parse(savedOrders).map((o) => ({
-          ...o,
-          timestamp: getOrderTimestamp(o) || o.timestamp
-        }));
+        const parsedOrders = JSON.parse(savedOrders)
+          .filter((o) => o.invoiceId !== 'AYR-20261031-098' && o.invoiceId !== 'AYR-20261031-101')
+          .map((o) => ({
+            ...o,
+            timestamp: getOrderTimestamp(o) || o.timestamp
+          }));
         setOrders(parsedOrders);
+        localStorage.setItem('aiyra_orders', JSON.stringify(parsedOrders));
       } else {
-        setOrders(INITIAL_ORDERS);
-        localStorage.setItem('aiyra_orders', JSON.stringify(INITIAL_ORDERS));
+        setOrders([]);
+        localStorage.setItem('aiyra_orders', JSON.stringify([]));
       }
 
       // Load settings
@@ -481,6 +484,16 @@ export function StoreProvider({ children }) {
     }
   };
 
+  const deleteOrder = (invoiceId) => {
+    const updated = orders.filter((o) => o.invoiceId !== invoiceId);
+    setOrders(updated);
+    try {
+      localStorage.setItem('aiyra_orders', JSON.stringify(updated));
+    } catch (e) {
+      console.error('Failed to delete order', e);
+    }
+  };
+
   const reorder = (order) => {
     let newCart = [...cart];
     order.items.forEach((orderItem) => {
@@ -608,6 +621,7 @@ export function StoreProvider({ children }) {
         // Orders & Waiting List Actions
         addOrder,
         updateOrderStatus,
+        deleteOrder,
         clearOrders,
         reorder,
         // Settings & Auth

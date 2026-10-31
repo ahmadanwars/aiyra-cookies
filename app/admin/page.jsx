@@ -57,6 +57,8 @@ export default function AdminPage() {
     resetProductsToDefault,
     updateSettings,
     updateOrderStatus,
+    deleteOrder,
+    clearOrders,
     syncFromGoogleSheets,
     isSyncingSheet,
     sortOrdersEarliestFirst,
@@ -190,6 +192,22 @@ export default function AdminPage() {
     if (confirm(`Apakah Anda yakin ingin membatalkan pesanan #${invoiceId}?`)) {
       updateOrderStatus(invoiceId, 'Dibatalkan');
       setApprovalToast(`❌ Pesanan #${invoiceId} telah DIBATALKAN.`);
+      setTimeout(() => setApprovalToast(''), 3500);
+    }
+  };
+
+  const handleDeleteSingleOrder = (invoiceId) => {
+    if (confirm(`Hapus pesanan #${invoiceId} secara permanen?`)) {
+      deleteOrder(invoiceId);
+      setApprovalToast(`🗑️ Pesanan #${invoiceId} telah dihapus.`);
+      setTimeout(() => setApprovalToast(''), 3500);
+    }
+  };
+
+  const handleClearAllOrders = () => {
+    if (confirm('Apakah Anda yakin ingin mengosongkan semua riwayat antrean pesanan? Tindakan ini akan menghapus semua pesanan saat ini.')) {
+      clearOrders();
+      setApprovalToast('🧹 Semua riwayat pesanan telah berhasil dikosongkan.');
       setTimeout(() => setApprovalToast(''), 3500);
     }
   };
@@ -680,6 +698,18 @@ function handleRequest(params) {
                 className="w-full text-xs pl-8 pr-3 py-1.5 rounded-xl border border-neutral-200 bg-white focus:outline-none focus:ring-1 focus:ring-cookie-500"
               />
             </div>
+
+            {orders.length > 0 && (
+              <button
+                type="button"
+                onClick={handleClearAllOrders}
+                className="px-2.5 py-1.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-bold transition flex items-center gap-1 shadow-2xs"
+                title="Kosongkan Semua Riwayat Antrean Pesanan"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Kosongkan Antrean</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -853,6 +883,15 @@ function handleRequest(params) {
                           <span>Pesanan Selesai</span>
                         </span>
                       )}
+
+                      {/* 6. TOMBOL HAPUS PESANAN PERMANEN */}
+                      <button
+                        onClick={() => handleDeleteSingleOrder(order.invoiceId)}
+                        className="p-2 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition border border-transparent hover:border-red-200"
+                        title="Hapus pesanan ini secara permanen"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
 
