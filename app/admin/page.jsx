@@ -47,6 +47,7 @@ export default function AdminPage() {
     settings,
     users,
     updateUserRole,
+    deleteUser,
     isAdmin,
     loginAdmin,
     logoutAdmin,
@@ -208,6 +209,15 @@ export default function AdminPage() {
     if (confirm('Apakah Anda yakin ingin mengosongkan semua riwayat antrean pesanan? Tindakan ini akan menghapus semua pesanan saat ini.')) {
       clearOrders();
       setApprovalToast('🧹 Semua riwayat pesanan telah berhasil dikosongkan.');
+      setTimeout(() => setApprovalToast(''), 3500);
+    }
+  };
+
+  // Delete User Handler
+  const handleDeleteUser = (userToDelete) => {
+    if (confirm(`Apakah Anda yakin ingin menghapus akun pengguna "${userToDelete.fullName}" (${userToDelete.phone}) secara permanen?`)) {
+      deleteUser(userToDelete.id);
+      setApprovalToast(`🗑️ Akun "${userToDelete.fullName}" telah berhasil dihapus.`);
       setTimeout(() => setApprovalToast(''), 3500);
     }
   };
@@ -1236,7 +1246,7 @@ function handleRequest(params) {
                 <th className="py-3 px-4">No. WhatsApp</th>
                 <th className="py-3 px-4">Alamat Pengiriman</th>
                 <th className="py-3 px-4 text-center">Role / Peran</th>
-                <th className="py-3 px-4 text-right">Aksi Ubah Role</th>
+                <th className="py-3 px-4 text-right">Aksi & Kelola Akun</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100">
@@ -1280,29 +1290,39 @@ function handleRequest(params) {
                         </span>
                       </td>
                       <td className="py-3 px-4 text-right">
-                        {isUserReseller ? (
+                        <div className="flex items-center justify-end gap-1.5">
+                          {isUserReseller ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                updateUserRole(u.id, 'user');
+                                setApprovalToast(`Role ${u.fullName} diubah menjadi Pembeli Reguler.`);
+                              }}
+                              className="bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 px-3 py-1.5 rounded-xl font-bold text-[11px] transition shadow-2xs"
+                            >
+                              Ubah jadi Pembeli
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                updateUserRole(u.id, 'reseller');
+                                setApprovalToast(`Role ${u.fullName} diubah menjadi Mitra Reseller! Mendapatkan harga grosir.`);
+                              }}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl font-bold text-[11px] transition shadow-xs"
+                            >
+                              Jadikan Reseller ✨
+                            </button>
+                          )}
                           <button
                             type="button"
-                            onClick={() => {
-                              updateUserRole(u.id, 'user');
-                              setApprovalToast(`Role ${u.fullName} diubah menjadi Pembeli Reguler.`);
-                            }}
-                            className="bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 px-3 py-1.5 rounded-xl font-bold text-[11px] transition shadow-2xs"
+                            onClick={() => handleDeleteUser(u)}
+                            className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition border border-transparent hover:border-red-200"
+                            title={`Hapus akun "${u.fullName}" secara permanen`}
                           >
-                            Ubah jadi Pembeli
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              updateUserRole(u.id, 'reseller');
-                              setApprovalToast(`Role ${u.fullName} diubah menjadi Mitra Reseller! Mendapatkan harga grosir.`);
-                            }}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl font-bold text-[11px] transition shadow-xs"
-                          >
-                            Jadikan Reseller ✨
-                          </button>
-                        )}
+                        </div>
                       </td>
                     </tr>
                   );

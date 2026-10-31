@@ -123,10 +123,6 @@ export function StoreProvider({ children }) {
           ...u,
           role: u.role || 'user'
         }));
-        // Ensure demo reseller exists
-        if (!parsedUsers.some(u => u.phone === '081233334444')) {
-          parsedUsers = [...parsedUsers, ...INITIAL_USERS.filter(iu => iu.phone === '081233334444')];
-        }
         setUsers(parsedUsers);
         localStorage.setItem('aiyra_users', JSON.stringify(parsedUsers));
       } else {
@@ -289,6 +285,17 @@ export function StoreProvider({ children }) {
       setCurrentUser(updatedCurrent);
       try {
         localStorage.setItem('aiyra_current_user', JSON.stringify(updatedCurrent));
+      } catch (e) {}
+    }
+  };
+
+  const deleteUser = (userId) => {
+    const updated = users.filter((u) => u.id !== userId);
+    updateUsersState(updated);
+    if (currentUser && currentUser.id === userId) {
+      setCurrentUser(null);
+      try {
+        localStorage.removeItem('aiyra_current_user');
       } catch (e) {}
     }
   };
@@ -605,6 +612,7 @@ export function StoreProvider({ children }) {
         // User Auth Actions
         registerUser,
         updateUserRole,
+        deleteUser,
         loginUser,
         logoutUser,
         // Product Actions
