@@ -233,7 +233,7 @@ export function StoreProvider({ children }) {
   };
 
   // ================= USER & RESELLER AUTHENTICATION =================
-  const registerUser = async ({ fullName, phone, password, address, role = 'user' }) => {
+  const registerUser = ({ fullName, phone, password, address, role = 'user' }) => {
     const cleanPhone = phone.trim().replace(/[^0-9]/g, '');
     
     // Check if user already exists

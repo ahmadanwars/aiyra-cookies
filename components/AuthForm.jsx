@@ -69,42 +69,47 @@ export default function AuthForm() {
   };
 
   // Handle Register Submit
-  const handleRegisterSubmit = (e) => {
+  const handleRegisterSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
     setSuccessMessage('');
     setPendingNotice(null);
 
-    if (!regFullName.trim()) {
+    const name = regFullName.trim();
+    const phone = regPhone.trim();
+    const pass = regPassword.trim();
+    const addr = regAddress.trim();
+
+    if (!name) {
       setErrorMessage('Nama Lengkap wajib diisi.');
       return;
     }
-    if (!regPhone.trim()) {
+    if (!phone) {
       setErrorMessage('Nomor WhatsApp wajib diisi.');
       return;
     }
-    if (!regPassword.trim() || regPassword.length < 4) {
+    if (!pass || pass.length < 4) {
       setErrorMessage('Password minimal 4 karakter.');
       return;
     }
-    if (!regAddress.trim()) {
+    if (!addr) {
       setErrorMessage('Alamat Lengkap wajib diisi untuk pengiriman.');
       return;
     }
 
-    const res = registerUser({
-      fullName: regFullName,
-      phone: regPhone,
-      password: regPassword,
-      address: regAddress,
+    const res = await registerUser({
+      fullName: name,
+      phone: phone,
+      password: pass,
+      address: addr,
       role: regRole
     });
 
-    if (res.success && res.pendingApproval) {
+    if (res && res.success && res.pendingApproval) {
       setPendingNotice({
         type: 'register',
-        name: regFullName,
-        phone: regPhone,
+        name: name,
+        phone: phone,
         role: regRole,
         message: res.message
       });
@@ -112,10 +117,10 @@ export default function AuthForm() {
       setRegPhone('');
       setRegPassword('');
       setRegAddress('');
-    } else if (res.success) {
+    } else if (res && res.success) {
       setSuccessMessage('Pendaftaran berhasil! Mengalihkan ke katalog...');
     } else {
-      setErrorMessage(res.message);
+      setErrorMessage(res?.message || 'Gagal mendaftar. Silakan coba lagi.');
     }
   };
 
@@ -296,7 +301,57 @@ export default function AuthForm() {
 
         {/* ================= TAB 2: FORM DAFTAR / REGISTER ================= */}
         {activeTab === 'register' && (
-          <form onSubmit={handleRegisterSubmit} className="p-6 sm:p-8 space-y-3.5">
+          pendingNotice && pendingNotice.type === 'register' ? (
+            <div className="p-6 sm:p-8 text-center space-y-4 animate-fade-in">
+              <div className="w-16 h-16 rounded-3xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto shadow-inner border border-amber-200">
+                <Clock className="w-8 h-8 animate-pulse text-amber-600" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-serif font-bold text-xl sm:text-2xl text-cookie-950">
+                  Pendaftaran Berhasil Diajukan!
+                </h3>
+                <span className="text-xs text-amber-900 font-extrabold bg-amber-100/90 border border-amber-300 py-1 px-3.5 rounded-full inline-block">
+                  ⏳ Menunggu Persetujuan (Approval) Admin
+                </span>
+              </div>
+              <div className="p-4 bg-amber-50/70 rounded-2xl border border-amber-200/80 text-left text-xs space-y-1.5 text-neutral-700">
+                <p>👤 <strong>Nama:</strong> {pendingNotice.name}</p>
+                <p>📱 <strong>WhatsApp:</strong> {pendingNotice.phone}</p>
+                <p>🤝 <strong>Tipe Akun:</strong> {pendingNotice.role === 'reseller' ? 'Mitra Reseller (Harga Grosir)' : 'Pembeli Reguler'}</p>
+                <p className="text-[11px] text-amber-800 pt-1 font-medium border-t border-amber-200/60 mt-1">
+                  Demi keamanan harga kue, akun Anda saat ini sedang menunggu verifikasi dari Admin toko sebelum dapat digunakan untuk masuk.
+                </p>
+              </div>
+
+              <div className="pt-2 space-y-2">
+                <a
+                  href={`https://wa.me/${cleanAdminWa}?text=${encodeURIComponent(
+                    `Halo Admin Aiyra Cookies, saya sudah mendaftar akun (${pendingNotice.phone} a.n ${pendingNotice.name}). Mohon bantuannya untuk approval akun saya agar bisa mulai berbelanja. Terima kasih!`
+                  )}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-2xl text-xs sm:text-sm shadow-md transition flex items-center justify-center gap-2"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  <span>Konfirmasi via WhatsApp Admin</span>
+                </a>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoginPhone(pendingNotice.phone);
+                    setPendingNotice(null);
+                    setActiveTab('login');
+                  }}
+                  className="w-full bg-cookie-50 hover:bg-cookie-100 text-cookie-900 border border-cookie-200 font-bold py-2.5 px-4 rounded-2xl text-xs transition flex items-center justify-center gap-1.5"
+                >
+                  <span>Buka Halaman Masuk Akun</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleRegisterSubmit} className="p-6 sm:p-8 space-y-3.5">
             
             {/* Pilihan Tipe Akun (Role) */}
             <div>
@@ -443,6 +498,7 @@ export default function AuthForm() {
             </div>
 
           </form>
+          )
         )}
 
       </div>
