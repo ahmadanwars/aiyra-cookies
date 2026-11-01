@@ -526,6 +526,46 @@ export function StoreProvider({ children }) {
     }
   };
 
+  // Update Order Details (Items, Qty, Price, Address, etc.)
+  const updateOrder = (invoiceId, updatedFields) => {
+    const updated = orders.map((o) => {
+      if (o.invoiceId === invoiceId) {
+        const merged = { ...o, ...updatedFields };
+        if (updatedFields.items) {
+          const totalQty = updatedFields.items.reduce((s, it) => s + (Number(it.qty) || 0), 0);
+          const totalPrice = updatedFields.items.reduce((s, it) => s + ((Number(it.price) || 0) * (Number(it.qty) || 0)), 0);
+          const itemsSummary = updatedFields.items.map((it) => `${it.name} (${it.qty}x)`).join(', ');
+          merged.totalQty = totalQty;
+          merged.totalPrice = totalPrice;
+          merged.itemsSummary = itemsSummary;
+        }
+        return merged;
+      }
+      return o;
+    });
+
+    setOrders(updated);
+    try {
+      localStorage.setItem('aiyra_orders', JSON.stringify(updated));
+    } catch (e) {
+      console.error('Failed to update order', e);
+    }
+
+    // Sync updated order to Google Spreadsheet Web App (if Script URL is set)
+    if (settings.googleScriptUrl) {
+      const target = updated.find((o) => o.invoiceId === invoiceId);
+      if (target) {
+        sendToGoogleAppsScript(settings.googleScriptUrl, {
+          action: 'updateOrderDetails',
+          invoiceId,
+          itemsSummary: target.itemsSummary,
+          totalPrice: target.totalPrice,
+          address: target.customer?.address || '-'
+        });
+      }
+    }
+  };
+
   const clearOrders = () => {
     setOrders([]);
     try {
@@ -675,6 +715,7 @@ export function StoreProvider({ children }) {
         // Orders & Waiting List Actions
         addOrder,
         updateOrderStatus,
+        updateOrder,
         deleteOrder,
         clearOrders,
         reorder,

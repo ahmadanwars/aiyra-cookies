@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../../lib/storeContext';
 import AdminProductModal from '../../components/AdminProductModal';
+import EditOrderModal from '../../components/EditOrderModal';
 import {
   ShieldCheck,
   Plus,
@@ -87,6 +88,10 @@ export default function AdminPage() {
   // Product Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
+
+  // Edit Order Modal State
+  const [isEditOrderOpen, setIsEditOrderOpen] = useState(false);
+  const [editingOrder, setEditingOrder] = useState(null);
 
   // Settings Form State
   const [storeForm, setStoreForm] = useState({
@@ -197,6 +202,11 @@ export default function AdminPage() {
       setApprovalToast(`❌ Pesanan #${invoiceId} telah DIBATALKAN.`);
       setTimeout(() => setApprovalToast(''), 3500);
     }
+  };
+
+  const handleOpenEditOrder = (order) => {
+    setEditingOrder(order);
+    setIsEditOrderOpen(true);
   };
 
   const handleDeleteSingleOrder = (invoiceId) => {
@@ -841,7 +851,18 @@ function handleRequest(params) {
                   {/* Order Details & Address */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
                     <div>
-                      <span className="text-neutral-500 text-[11px] block">Rincian Item:</span>
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="text-neutral-500 text-[11px] block">Rincian Item:</span>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditOrder(order)}
+                          className="text-cookie-700 hover:text-cookie-950 font-bold text-[11px] underline flex items-center gap-1 transition"
+                          title="Ubah varian kue atau jumlah toples di pesanan ini"
+                        >
+                          <Edit2 className="w-3 h-3 text-cookie-700" />
+                          <span>Edit Produk / Qty</span>
+                        </button>
+                      </div>
                       <p className="font-semibold text-neutral-800">
                         {order.items
                           ? order.items.map((it) => `${it.name} (${it.qty}x)`).join(', ')
@@ -899,6 +920,19 @@ function handleRequest(params) {
                         >
                           <Truck className="w-3.5 h-3.5" />
                           <span>Kirim</span>
+                        </button>
+                      )}
+
+                      {/* TOMBOL EDIT PESANAN */}
+                      {order.status !== 'Dibatalkan' && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditOrder(order)}
+                          className="bg-amber-100 hover:bg-amber-200 text-amber-950 font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 transition border border-amber-300 shadow-2xs"
+                          title="Edit produk, tambah atau kurangi toples pesanan ini"
+                        >
+                          <Edit2 className="w-3.5 h-3.5 text-amber-800" />
+                          <span>Edit Pesanan</span>
                         </button>
                       )}
 
@@ -1718,6 +1752,20 @@ function handleRequest(params) {
         }}
         onSave={handleSaveProduct}
         editingProduct={editingProduct}
+      />
+
+      {/* EDIT ORDER MODAL (ADD/REMOVE ITEMS & ADJUST QTY) */}
+      <EditOrderModal
+        isOpen={isEditOrderOpen}
+        onClose={() => {
+          setIsEditOrderOpen(false);
+          setEditingOrder(null);
+        }}
+        order={editingOrder}
+        onSaved={(updated) => {
+          setApprovalToast(`✅ Pesanan #${updated.invoiceId} berhasil diperbarui!`);
+          setTimeout(() => setApprovalToast(''), 3500);
+        }}
       />
 
     </div>

@@ -1,8 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useStore } from '../lib/storeContext';
-import { History, X, Trash2, RotateCw, CheckCircle2, Clock, PackageCheck, AlertCircle } from 'lucide-react';
+import { History, X, Trash2, RotateCw, CheckCircle2, Clock, PackageCheck, AlertCircle, Edit2 } from 'lucide-react';
+import EditOrderModal from './EditOrderModal';
 
 export default function OrderHistoryModal() {
   const {
@@ -13,6 +14,9 @@ export default function OrderHistoryModal() {
     reorder,
     formatRupiah
   } = useStore();
+
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingOrder, setEditingOrder] = useState(null);
 
   if (!isHistoryOpen) return null;
 
@@ -183,14 +187,31 @@ export default function OrderHistoryModal() {
                       </span>
                     </div>
 
-                    <button
-                      onClick={() => reorder(order)}
-                      className="bg-cookie-100 hover:bg-cookie-200 text-cookie-900 px-3.5 py-2 rounded-xl font-bold flex items-center gap-1.5 transition text-xs shadow-2xs"
-                      title="Masukkan menu dari pesanan ini kembali ke keranjang"
-                    >
-                      <RotateCw className="w-3.5 h-3.5 text-cookie-700" />
-                      <span>Pesan Lagi</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {(order.status === 'Waiting List' || order.status === 'Terkirim ke WhatsApp') && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingOrder(order);
+                            setIsEditOpen(true);
+                          }}
+                          className="bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition text-xs shadow-2xs"
+                          title="Ubah pesanan jika salah pilih kue atau ingin ganti jumlah toples"
+                        >
+                          <Edit2 className="w-3.5 h-3.5 text-amber-800" />
+                          <span>Edit Pesanan</span>
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => reorder(order)}
+                        className="bg-cookie-100 hover:bg-cookie-200 text-cookie-900 px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition text-xs shadow-2xs"
+                        title="Masukkan menu dari pesanan ini kembali ke keranjang"
+                      >
+                        <RotateCw className="w-3.5 h-3.5 text-cookie-700" />
+                        <span>Pesan Lagi</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -212,6 +233,17 @@ export default function OrderHistoryModal() {
         </div>
 
       </div>
+
+      {/* EDIT ORDER MODAL FOR BUYER */}
+      <EditOrderModal
+        isOpen={isEditOpen}
+        onClose={() => {
+          setIsEditOpen(false);
+          setEditingOrder(null);
+        }}
+        order={editingOrder}
+      />
+
     </div>
   );
 }
