@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { useStore } from '../lib/storeContext';
 import { CATEGORIES } from '../lib/initialData';
 import AuthForm from '../components/AuthForm';
+import HeroBannerSlider from '../components/HeroBannerSlider';
+import BannerSlideModal from '../components/BannerSlideModal';
 import {
   Search,
   Plus,
@@ -39,6 +41,7 @@ export default function HomePage() {
 
   const [selectedCategory, setSelectedCategory] = useState('Semua');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isBannerModalOpen, setIsBannerModalOpen] = useState(false);
 
   // 1. Loading State
   if (!isLoaded) {
@@ -72,62 +75,85 @@ export default function HomePage() {
       
       {/* HERO SECTION */}
       <section className="max-w-7xl mx-auto px-4 pt-6">
-        <div className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-cookie-950 via-cookie-900 to-amber-950 text-white p-6 sm:p-10 md:p-12 shadow-xl">
-          <div className="relative z-10 max-w-2xl space-y-3.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-semibold bg-white/15 backdrop-blur-md text-amber-200 border border-white/20">
-                <Sparkles className="w-3.5 h-3.5" />
-                Edisi Spesial Kue Kering & Hampers Premium
-              </span>
-              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold shadow-xs ${
-                isReseller
-                  ? 'bg-emerald-400 text-emerald-950 ring-2 ring-emerald-300/40'
-                  : 'bg-amber-400 text-cookie-950'
-              }`}>
-                <UserCheck className="w-3.5 h-3.5" />
-                Halo, {currentUser.fullName}! ({isReseller ? '🤝 Mitra Reseller' : '👤 Pembeli'})
-              </span>
-            </div>
+        <div className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-cookie-950 via-cookie-900 to-amber-950 text-white p-6 sm:p-8 md:p-10 shadow-xl">
+          <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
             
-            <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl font-extrabold leading-tight tracking-tight">
-              Kelezatan Gurih & Renyah di Setiap Gigitan
-            </h2>
-            <p className="text-amber-100/90 text-xs sm:text-sm md:text-base leading-relaxed">
-              {isReseller
-                ? 'Selamat datang Mitra Reseller! Seluruh harga katalog otomatis menerapkan harga grosir khusus reseller.'
-                : 'Pilih aneka toples kue favorit Anda, tentukan jumlahnya, dan pesanan akan otomatis terkirim rapi ke WhatsApp kami!'}
-            </p>
-            <div className="pt-2 flex flex-wrap items-center gap-3">
-              <a
-                href="#katalog"
-                className="bg-amber-400 hover:bg-amber-300 text-cookie-950 font-bold px-5 py-2.5 rounded-2xl text-xs sm:text-sm shadow-md transition flex items-center gap-2"
-              >
-                <span>Lihat Menu Katalog</span>
-                <ArrowDown className="w-4 h-4" />
-              </a>
-              <a
-                href={`https://wa.me/${(settings.adminWhatsApp || '6281234567890').replace(/[^0-9]/g, '')}`}
-                target="_blank"
-                rel="noreferrer"
-                className="bg-white/10 hover:bg-white/20 text-white px-4 py-2.5 rounded-2xl text-xs font-medium border border-white/30 backdrop-blur-sm transition flex items-center gap-1.5"
-              >
-                <Phone className="w-3.5 h-3.5" />
-                <span>WA: +{settings.adminWhatsApp}</span>
-              </a>
-              {isAdmin && (
-                <Link
-                  href="/admin"
-                  className="bg-cookie-800/80 hover:bg-cookie-800 text-amber-200 px-3.5 py-2 rounded-2xl text-xs font-semibold border border-amber-300/30 transition flex items-center gap-1.5 ml-auto"
+            {/* Left Column: Title, Greeting & Actions */}
+            <div className="lg:col-span-6 xl:col-span-7 space-y-3.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-semibold bg-white/15 backdrop-blur-md text-amber-200 border border-white/20">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Edisi Spesial Kue Kering & Hampers Premium
+                </span>
+                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold shadow-xs ${
+                  isReseller
+                    ? 'bg-emerald-400 text-emerald-950 ring-2 ring-emerald-300/40'
+                    : 'bg-amber-400 text-cookie-950'
+                }`}>
+                  <UserCheck className="w-3.5 h-3.5" />
+                  Halo, {currentUser.fullName}! ({isReseller ? '🤝 Mitra Reseller' : '👤 Pembeli'})
+                </span>
+              </div>
+              
+              <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl font-extrabold leading-tight tracking-tight">
+                Kelezatan Gurih & Renyah di Setiap Gigitan
+              </h2>
+              <p className="text-amber-100/90 text-xs sm:text-sm md:text-base leading-relaxed">
+                {isReseller
+                  ? 'Selamat datang Mitra Reseller! Seluruh harga katalog otomatis menerapkan harga grosir khusus reseller.'
+                  : 'Pilih aneka toples kue favorit Anda, tentukan jumlahnya, dan pesanan akan otomatis terkirim rapi ke WhatsApp kami!'}
+              </p>
+              
+              <div className="pt-2 flex flex-wrap items-center gap-2.5">
+                <a
+                  href="#katalog"
+                  className="bg-amber-400 hover:bg-amber-300 text-cookie-950 font-bold px-5 py-2.5 rounded-2xl text-xs sm:text-sm shadow-md transition flex items-center gap-2"
                 >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Panel Admin</span>
-                </Link>
-              )}
+                  <span>Lihat Menu Katalog</span>
+                  <ArrowDown className="w-4 h-4" />
+                </a>
+                <a
+                  href={`https://wa.me/${(settings.adminWhatsApp || '6281234567890').replace(/[^0-9]/g, '')}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="bg-white/10 hover:bg-white/20 text-white px-4 py-2.5 rounded-2xl text-xs font-medium border border-white/30 backdrop-blur-sm transition flex items-center gap-1.5"
+                >
+                  <Phone className="w-3.5 h-3.5" />
+                  <span>WA: +{settings.adminWhatsApp}</span>
+                </a>
+
+                {isAdmin && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setIsBannerModalOpen(true)}
+                      className="bg-amber-400/20 hover:bg-amber-400/30 text-amber-200 px-3.5 py-2.5 rounded-2xl text-xs font-bold border border-amber-300/40 backdrop-blur-sm transition flex items-center gap-1.5"
+                      title="Kelola foto slide dan logo toko"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                      <span>Edit Slide & Logo</span>
+                    </button>
+                    <Link
+                      href="/admin"
+                      className="bg-cookie-800/80 hover:bg-cookie-800 text-amber-200 px-3.5 py-2 rounded-2xl text-xs font-semibold border border-amber-300/30 transition flex items-center gap-1.5"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      <span>Panel Admin</span>
+                    </Link>
+                  </>
+                )}
+              </div>
             </div>
+
+            {/* Right Column: Hero Banner Photo Slider */}
+            <div className="lg:col-span-6 xl:col-span-5 w-full">
+              <HeroBannerSlider onOpenEditModal={() => setIsBannerModalOpen(true)} />
+            </div>
+
           </div>
           
           {/* Subtle background glow */}
-          <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-radial from-amber-500/20 to-transparent pointer-events-none" />
+          <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-radial from-amber-500/15 to-transparent pointer-events-none" />
         </div>
       </section>
 
@@ -347,6 +373,14 @@ export default function HomePage() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* MODAL KELOLA SLIDE & LOGO */}
+      {isAdmin && (
+        <BannerSlideModal
+          isOpen={isBannerModalOpen}
+          onClose={() => setIsBannerModalOpen(false)}
+        />
       )}
 
     </div>

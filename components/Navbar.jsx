@@ -51,8 +51,16 @@ export default function Navbar() {
           
           {/* Logo & Brand */}
           <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-cookie-800 to-cookie-500 flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform">
-              <Cookie className="w-6 h-6" />
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-cookie-800 to-cookie-500 flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform overflow-hidden border border-cookie-200/40">
+              {settings.logoUrl ? (
+                <img
+                  src={settings.logoUrl}
+                  alt={settings.storeName || 'Logo'}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <Cookie className="w-6 h-6" />
+              )}
             </div>
             <div>
               <div className="flex items-center gap-2">

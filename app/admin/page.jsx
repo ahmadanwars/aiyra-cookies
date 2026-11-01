@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useStore } from '../../lib/storeContext';
 import AdminProductModal from '../../components/AdminProductModal';
 import EditOrderModal from '../../components/EditOrderModal';
+import BannerSlideModal from '../../components/BannerSlideModal';
 import {
   ShieldCheck,
   Plus,
@@ -37,7 +38,10 @@ import {
   Users,
   Eye,
   EyeOff,
-  Lock
+  Lock,
+  Cookie,
+  Upload,
+  Image as ImageIcon
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -93,11 +97,15 @@ export default function AdminPage() {
   const [isEditOrderOpen, setIsEditOrderOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState(null);
 
+  // Banner Slide & Logo Modal State
+  const [isBannerModalOpen, setIsBannerModalOpen] = useState(false);
+
   // Settings Form State
   const [storeForm, setStoreForm] = useState({
     adminWhatsApp: settings.adminWhatsApp || '',
     storeName: settings.storeName || '',
     storeTagline: settings.storeTagline || '',
+    logoUrl: settings.logoUrl || '',
     adminPin: settings.adminPin || '123456',
     spreadsheetId: settings.spreadsheetId || '1qNF4XHN3vjB91rjluYgVLJRJMC971dgVsXsGIppB9wg',
     googleScriptUrl: settings.googleScriptUrl || ''
@@ -111,6 +119,7 @@ export default function AdminPage() {
         adminWhatsApp: settings.adminWhatsApp || '',
         storeName: settings.storeName || '',
         storeTagline: settings.storeTagline || '',
+        logoUrl: settings.logoUrl || '',
         adminPin: settings.adminPin || '123456',
         spreadsheetId: settings.spreadsheetId || '1qNF4XHN3vjB91rjluYgVLJRJMC971dgVsXsGIppB9wg',
         googleScriptUrl: settings.googleScriptUrl || ''
@@ -325,6 +334,7 @@ export default function AdminPage() {
       adminWhatsApp: cleanedWa,
       storeName: storeForm.storeName.trim() || 'Aiyra Cookies',
       storeTagline: storeForm.storeTagline.trim() || 'Artisan Homemade Delights',
+      logoUrl: (storeForm.logoUrl || '').trim(),
       adminPin: storeForm.adminPin.trim() || '123456',
       spreadsheetId: storeForm.spreadsheetId.trim() || '1qNF4XHN3vjB91rjluYgVLJRJMC971dgVsXsGIppB9wg',
       googleScriptUrl: storeForm.googleScriptUrl.trim()
@@ -332,6 +342,38 @@ export default function AdminPage() {
 
     setSettingsSaved(true);
     setTimeout(() => setSettingsSaved(false), 3000);
+  };
+
+  const handleAdminLogoUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxDim = 320;
+        let width = img.width;
+        let height = img.height;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+        setStoreForm((prev) => ({ ...prev, logoUrl: dataUrl }));
+      };
+    };
   };
 
   const appsScriptCode = `// KODE GOOGLE APPS SCRIPT DATABASE AIYRA COOKIES
@@ -569,21 +611,36 @@ function handleRequest(params) {
       
       {/* Top Banner & Quick Controls */}
       <div className="bg-white rounded-3xl p-5 sm:p-6 border border-cookie-100 shadow-xs flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-lg bg-amber-100 text-amber-900">
-              <ShieldCheck className="w-5 h-5 text-amber-600" />
-            </span>
-            <h2 className="font-serif font-bold text-xl sm:text-2xl text-cookie-900">
-              Panel Kelola Toko & Approval Pesanan
-            </h2>
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-cookie-800 to-cookie-500 flex items-center justify-center text-white shadow-md overflow-hidden border border-cookie-200 shrink-0">
+            {settings.logoUrl ? (
+              <img src={settings.logoUrl} alt={settings.storeName || 'Logo'} className="w-full h-full object-cover" />
+            ) : (
+              <ShieldCheck className="w-7 h-7 text-amber-300" />
+            )}
           </div>
-          <p className="text-xs text-neutral-500 mt-1">
-            Role: <strong>Admin / Pemilik Toko</strong>. Setujui antrean pesanan pembeli (Waiting List), kelola 3 peran (Admin, Pembeli, Reseller), dan kelola katalog.
-          </p>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="font-serif font-bold text-xl sm:text-2xl text-cookie-900">
+                Panel Kelola Toko & Approval Pesanan
+              </h2>
+            </div>
+            <p className="text-xs text-neutral-500 mt-0.5">
+              Role: <strong>Admin / Pemilik Toko</strong>. Setujui antrean pesanan pembeli (Waiting List), kelola 3 peran, dan atur banner/logo.
+            </p>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsBannerModalOpen(true)}
+            className="bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs"
+            title="Kelola foto slide pada banner coklat dan ubah logo toko"
+          >
+            <Sparkles className="w-4 h-4 text-amber-700" />
+            <span>Foto Slide & Logo</span>
+          </button>
           <Link
             href="/"
             className="bg-cookie-50 hover:bg-cookie-100 text-cookie-800 border border-cookie-200 px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-1.5"
@@ -1554,8 +1611,92 @@ function handleRequest(params) {
       {/* ======================================================== */}
       {/* 5. CONFIGURATION SETTINGS                                */}
       {/* ======================================================== */}
-      <div className="bg-white rounded-3xl p-6 border border-cookie-100 shadow-xs space-y-4">
-        <div className="flex items-center gap-2">
+      <div className="bg-white rounded-3xl p-6 border border-cookie-100 shadow-xs space-y-6">
+        
+        {/* BRANDING: LOGO & BANNER SLIDES MANAGEMENT */}
+        <div className="p-5 rounded-2xl bg-amber-50/70 border border-amber-200/80 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-amber-200/60 text-amber-900">
+                <Sparkles className="w-5 h-5 text-amber-700" />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-cookie-950">
+                  Logo Toko & Foto Slide Banner Coklat
+                </h4>
+                <p className="text-xs text-neutral-600">
+                  Ubah logo toko (muncul di navbar & admin) serta kelola foto slide yang tampil bergantian pada banner coklat.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsBannerModalOpen(true)}
+              className="bg-cookie-800 hover:bg-cookie-900 text-amber-200 hover:text-white font-bold text-xs px-4 py-2.5 rounded-xl border border-cookie-700 shadow-xs transition flex items-center gap-1.5 self-start sm:self-auto shrink-0"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span>Buka Pengelola Slide & Logo</span>
+            </button>
+          </div>
+
+          {/* Quick Logo Preview & URL */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center pt-2 border-t border-amber-200/60">
+            {/* Logo Preview */}
+            <div className="md:col-span-4 flex items-center gap-3 bg-white p-3 rounded-xl border border-amber-200 shadow-2xs">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-cookie-800 to-cookie-500 flex items-center justify-center text-white shadow-md overflow-hidden border border-cookie-200 shrink-0">
+                {storeForm.logoUrl ? (
+                  <img src={storeForm.logoUrl} alt="Logo Toko" className="w-full h-full object-cover" />
+                ) : (
+                  <Cookie className="w-7 h-7" />
+                )}
+              </div>
+              <div className="text-xs">
+                <p className="font-bold text-cookie-950">Logo Saat Ini</p>
+                <p className="text-[11px] text-neutral-500">
+                  {storeForm.logoUrl ? 'Logo Kustom Aktif' : 'Ikon Default (Kue)'}
+                </p>
+                {storeForm.logoUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setStoreForm((prev) => ({ ...prev, logoUrl: '' }))}
+                    className="text-[11px] text-red-600 hover:underline font-bold mt-0.5"
+                  >
+                    Hapus Logo
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Upload or Input URL */}
+            <div className="md:col-span-8 space-y-2">
+              <label className="block text-xs font-bold text-neutral-700">
+                Ubah Logo: Upload File Gambar atau Tempel Link URL
+              </label>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <label className="bg-cookie-700 hover:bg-cookie-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition shrink-0">
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Pilih File Logo</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleAdminLogoUpload}
+                  />
+                </label>
+                <input
+                  type="text"
+                  value={storeForm.logoUrl}
+                  onChange={(e) => setStoreForm({ ...storeForm, logoUrl: e.target.value })}
+                  placeholder="Atau tempel Link URL Logo (https://...)"
+                  className="flex-1 text-xs px-3 py-2 rounded-xl border border-neutral-300 font-mono focus:ring-1 focus:ring-cookie-500 bg-white"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 pt-2 border-t border-cookie-100">
           <Phone className="w-5 h-5 text-cookie-600" />
           <h3 className="font-bold text-base text-cookie-950">
             Pengaturan WhatsApp, Toko & Google Sheets
@@ -1766,6 +1907,12 @@ function handleRequest(params) {
           setApprovalToast(`✅ Pesanan #${updated.invoiceId} berhasil diperbarui!`);
           setTimeout(() => setApprovalToast(''), 3500);
         }}
+      />
+
+      {/* BANNER SLIDE & LOGO MODAL */}
+      <BannerSlideModal
+        isOpen={isBannerModalOpen}
+        onClose={() => setIsBannerModalOpen(false)}
       />
 
     </div>

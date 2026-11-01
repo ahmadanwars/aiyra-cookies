@@ -110,8 +110,22 @@ export function StoreProvider({ children }) {
       // Load settings
       const savedSettings = localStorage.getItem('aiyra_settings');
       if (savedSettings) {
-        currentSettings = { ...INITIAL_SETTINGS, ...JSON.parse(savedSettings) };
-        setSettings(currentSettings);
+        try {
+          const parsed = JSON.parse(savedSettings);
+          currentSettings = {
+            ...INITIAL_SETTINGS,
+            ...parsed,
+            logoUrl: parsed.logoUrl !== undefined ? parsed.logoUrl : (INITIAL_SETTINGS.logoUrl || ''),
+            bannerSlides: (parsed.bannerSlides && Array.isArray(parsed.bannerSlides) && parsed.bannerSlides.length > 0)
+              ? parsed.bannerSlides
+              : INITIAL_SETTINGS.bannerSlides
+          };
+          setSettings(currentSettings);
+        } catch (e) {
+          console.error('Failed to parse settings', e);
+          currentSettings = INITIAL_SETTINGS;
+          setSettings(INITIAL_SETTINGS);
+        }
       } else {
         localStorage.setItem('aiyra_settings', JSON.stringify(INITIAL_SETTINGS));
       }
