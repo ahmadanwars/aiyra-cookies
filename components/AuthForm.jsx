@@ -14,7 +14,8 @@ import {
   CheckCircle2,
   AlertCircle,
   Clock,
-  MessageCircle
+  MessageCircle,
+  Loader2
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -25,6 +26,7 @@ export default function AuthForm() {
   // Login form state
   const [loginPhone, setLoginPhone] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Register form state
   const [regFullName, setRegFullName] = useState('');
@@ -41,7 +43,7 @@ export default function AuthForm() {
   const cleanAdminWa = (settings.adminWhatsApp || '6281234567890').replace(/[^0-9]/g, '');
 
   // Handle Login Submit
-  const handleLoginSubmit = (e) => {
+  const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
     setSuccessMessage('');
@@ -52,19 +54,26 @@ export default function AuthForm() {
       return;
     }
 
-    const res = loginUser(loginPhone, loginPassword);
-    if (res.success) {
-      setSuccessMessage(`Selamat datang kembali, ${res.user.fullName}!`);
-    } else {
-      if (res.pendingApproval) {
-        setPendingNotice({
-          type: 'login',
-          phone: loginPhone,
-          message: res.message
-        });
+    setIsLoggingIn(true);
+    try {
+      const res = await loginUser(loginPhone, loginPassword);
+      if (res.success) {
+        setSuccessMessage(`Selamat datang kembali, ${res.user.fullName}!`);
       } else {
-        setErrorMessage(res.message);
+        if (res.pendingApproval) {
+          setPendingNotice({
+            type: 'login',
+            phone: loginPhone,
+            message: res.message
+          });
+        } else {
+          setErrorMessage(res.message);
+        }
       }
+    } catch (err) {
+      setErrorMessage('Terjadi kendala saat memeriksa akun. Silakan coba lagi.');
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -273,10 +282,22 @@ export default function AuthForm() {
             {/* Submit Button */}
             <button
               type="submit"
-              className="w-full bg-cookie-700 hover:bg-cookie-800 text-white font-bold py-3 px-4 rounded-2xl text-xs sm:text-sm shadow-md hover:shadow-lg transition flex items-center justify-center gap-2 mt-2"
+              disabled={isLoggingIn}
+              className={`w-full ${
+                isLoggingIn ? 'bg-cookie-400 cursor-not-allowed' : 'bg-cookie-700 hover:bg-cookie-800'
+              } text-white font-bold py-3 px-4 rounded-2xl text-xs sm:text-sm shadow-md hover:shadow-lg transition flex items-center justify-center gap-2 mt-2`}
             >
-              <span>Masuk ke Katalog</span>
-              <ArrowRight className="w-4 h-4" />
+              {isLoggingIn ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Memeriksa Akun...</span>
+                </>
+              ) : (
+                <>
+                  <span>Masuk ke Katalog</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
             </button>
 
             {/* Footer switcher */}

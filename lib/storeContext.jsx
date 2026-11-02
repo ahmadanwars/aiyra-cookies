@@ -117,6 +117,8 @@ export function StoreProvider({ children }) {
           currentSettings = {
             ...INITIAL_SETTINGS,
             ...parsed,
+            googleScriptUrl: parsed.googleScriptUrl || INITIAL_SETTINGS.googleScriptUrl || '',
+            spreadsheetId: parsed.spreadsheetId || INITIAL_SETTINGS.spreadsheetId || '',
             logoUrl: parsed.logoUrl !== undefined ? parsed.logoUrl : (INITIAL_SETTINGS.logoUrl || ''),
             bannerBadge: parsed.bannerBadge || INITIAL_SETTINGS.bannerBadge,
             bannerTitle: parsed.bannerTitle || INITIAL_SETTINGS.bannerTitle,
@@ -439,8 +441,9 @@ export function StoreProvider({ children }) {
 
     // Akun baru TIDAK langsung login, harus menunggu approval admin
     // Send to Google Spreadsheet Web App (if Script URL is set)
-    if (settings.googleScriptUrl) {
-      sendToGoogleAppsScript(settings.googleScriptUrl, {
+    const activeScriptUrl = settings.googleScriptUrl || INITIAL_SETTINGS.googleScriptUrl;
+    if (activeScriptUrl) {
+      sendToGoogleAppsScript(activeScriptUrl, {
         action: 'registerUser',
         ...newUser
       });
@@ -468,8 +471,9 @@ export function StoreProvider({ children }) {
     });
     updateUsersState(updated);
 
-    if (settings.googleScriptUrl) {
-      sendToGoogleAppsScript(settings.googleScriptUrl, {
+    const activeScriptUrl = settings.googleScriptUrl || INITIAL_SETTINGS.googleScriptUrl;
+    if (activeScriptUrl) {
+      sendToGoogleAppsScript(activeScriptUrl, {
         action: 'updateUser',
         id: userId,
         status: 'approved',
@@ -488,8 +492,9 @@ export function StoreProvider({ children }) {
       } catch (e) {}
     }
 
-    if (settings.googleScriptUrl) {
-      sendToGoogleAppsScript(settings.googleScriptUrl, {
+    const activeScriptUrl = settings.googleScriptUrl || INITIAL_SETTINGS.googleScriptUrl;
+    if (activeScriptUrl) {
+      sendToGoogleAppsScript(activeScriptUrl, {
         action: 'updateUser',
         id: userId,
         status: 'rejected'
@@ -508,8 +513,9 @@ export function StoreProvider({ children }) {
       } catch (e) {}
     }
 
-    if (settings.googleScriptUrl) {
-      sendToGoogleAppsScript(settings.googleScriptUrl, {
+    const activeScriptUrl = settings.googleScriptUrl || INITIAL_SETTINGS.googleScriptUrl;
+    if (activeScriptUrl) {
+      sendToGoogleAppsScript(activeScriptUrl, {
         action: 'updateUser',
         id: userId,
         role: newRole
@@ -527,23 +533,46 @@ export function StoreProvider({ children }) {
       } catch (e) {}
     }
 
-    if (settings.googleScriptUrl) {
-      sendToGoogleAppsScript(settings.googleScriptUrl, {
+    const activeScriptUrl = settings.googleScriptUrl || INITIAL_SETTINGS.googleScriptUrl;
+    if (activeScriptUrl) {
+      sendToGoogleAppsScript(activeScriptUrl, {
         action: 'deleteUser',
         id: userId
       });
     }
   };
 
-  const loginUser = (phoneOrName, password) => {
-    const cleanInput = phoneOrName.trim();
+  const loginUser = async (phoneOrName, password) => {
+    const cleanInput = (phoneOrName || '').trim();
     const cleanDigits = cleanInput.replace(/[^0-9]/g, '');
 
-    const found = users.find((u) => {
-      const matchPhone = cleanDigits && u.phone.replace(/[^0-9]/g, '') === cleanDigits;
-      const matchName = u.fullName.toLowerCase() === cleanInput.toLowerCase();
-      return (matchPhone || matchName) && u.password === password.trim();
-    });
+    const checkMatch = (userList) => {
+      if (!Array.isArray(userList)) return null;
+      return userList.find((u) => {
+        const uPhoneDigits = (u.phone || '').replace(/[^0-9]/g, '');
+        const matchPhone = cleanDigits && uPhoneDigits === cleanDigits;
+        const matchName = u.fullName && u.fullName.toLowerCase() === cleanInput.toLowerCase();
+        return (matchPhone || matchName) && String(u.password).trim() === password.trim();
+      });
+    };
+
+    let found = checkMatch(users);
+
+    // If not found in local memory, sync from Cloud Google Spreadsheet automatically
+    if (!found) {
+      try {
+        await syncCloudData();
+        let latestUsers = users;
+        try {
+          const stored = localStorage.getItem('aiyra_users');
+          if (stored) latestUsers = JSON.parse(stored);
+        } catch (e) {}
+
+        found = checkMatch(latestUsers);
+      } catch (err) {
+        console.warn('Cloud login lookup failed:', err);
+      }
+    }
 
     if (found) {
       const userStatus = found.status || 'approved';
