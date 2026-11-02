@@ -598,9 +598,14 @@ function handleRequest(params) {
     if (action === 'updateUser') {
       var sheet = ss.getSheetByName('Users');
       if (sheet && sheet.getLastRow() > 1) {
-        var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues();
+        var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 3).getValues();
+        var cleanTargetPhone = params.phone ? String(params.phone).replace(/[^0-9]/g, '') : '';
         for (var i = 0; i < rows.length; i++) {
-          if (String(rows[i][0]) === String(params.id)) {
+          var rowId = String(rows[i][0]);
+          var rowPhone = rows[i][2] ? String(rows[i][2]).replace(/[^0-9]/g, '') : '';
+          var matchId = params.id && rowId === String(params.id);
+          var matchPhone = cleanTargetPhone && rowPhone === cleanTargetPhone;
+          if (matchId || matchPhone) {
             if (params.role) sheet.getRange(i + 2, 6).setValue(params.role);
             if (params.status) sheet.getRange(i + 2, 7).setValue(params.status);
             break;
@@ -614,9 +619,14 @@ function handleRequest(params) {
     if (action === 'deleteUser') {
       var sheet = ss.getSheetByName('Users');
       if (sheet && sheet.getLastRow() > 1) {
-        var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues();
+        var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 3).getValues();
+        var cleanTargetPhone = params.phone ? String(params.phone).replace(/[^0-9]/g, '') : '';
         for (var i = 0; i < rows.length; i++) {
-          if (String(rows[i][0]) === String(params.id)) {
+          var rowId = String(rows[i][0]);
+          var rowPhone = rows[i][2] ? String(rows[i][2]).replace(/[^0-9]/g, '') : '';
+          var matchId = params.id && rowId === String(params.id);
+          var matchPhone = cleanTargetPhone && rowPhone === cleanTargetPhone;
+          if (matchId || matchPhone) {
             sheet.deleteRow(i + 2);
             break;
           }

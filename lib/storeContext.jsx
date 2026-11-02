@@ -210,10 +210,10 @@ export function StoreProvider({ children }) {
               return sorted;
             });
           }
-          if (res.users && Array.isArray(res.users) && res.users.length > 0) {
-            setUsers((prev) => {
+          if (res.users && Array.isArray(res.users)) {
+            setUsers(() => {
               const map = new Map();
-              prev.forEach((u) => {
+              INITIAL_USERS.forEach((u) => {
                 const k = (u.phone ? String(u.phone).replace(/[^0-9]/g, '') : '') || u.id;
                 if (k) map.set(k, u);
               });
@@ -353,11 +353,11 @@ export function StoreProvider({ children }) {
           });
         }
 
-        // 2. Merge & Sync Users
+        // 2. Merge & Sync Users (Google Sheets is the source of truth)
         if (res.users && Array.isArray(res.users)) {
-          setUsers((prevUsers) => {
+          setUsers(() => {
             const userMap = new Map();
-            prevUsers.forEach((u) => {
+            INITIAL_USERS.forEach((u) => {
               const k = (u.phone ? String(u.phone).replace(/[^0-9]/g, '') : '') || u.id;
               if (k) userMap.set(k, u);
             });
@@ -366,20 +366,7 @@ export function StoreProvider({ children }) {
               const k = (cu.phone ? String(cu.phone).replace(/[^0-9]/g, '') : '') || cu.id;
               if (!k) return;
               const existing = userMap.get(k);
-              if (existing) {
-                userMap.set(k, {
-                  ...existing,
-                  ...cu,
-                  status: cu.status || existing.status,
-                  role: cu.role || existing.role
-                });
-              } else {
-                userMap.set(k, {
-                  ...cu,
-                  status: cu.status || 'approved',
-                  role: cu.role || 'user'
-                });
-              }
+              userMap.set(k, existing ? { ...existing, ...cu } : { ...cu, status: cu.status || 'approved', role: cu.role || 'user' });
             });
 
             const mergedUsers = Array.from(userMap.values());
@@ -465,6 +452,7 @@ export function StoreProvider({ children }) {
 
   const approveUser = (userId, roleOverride) => {
     const targetRole = roleOverride || 'user';
+    const targetUser = users.find((u) => u.id === userId);
     const updated = users.map((u) => {
       if (u.id === userId) {
         return {
@@ -482,6 +470,7 @@ export function StoreProvider({ children }) {
       sendToGoogleAppsScript(activeScriptUrl, {
         action: 'updateUser',
         id: userId,
+        phone: targetUser?.phone || '',
         status: 'approved',
         role: targetRole
       });
@@ -489,6 +478,7 @@ export function StoreProvider({ children }) {
   };
 
   const rejectUser = (userId) => {
+    const targetUser = users.find((u) => u.id === userId);
     const updated = users.map((u) => (u.id === userId ? { ...u, status: 'rejected' } : u));
     updateUsersState(updated);
     if (currentUser && currentUser.id === userId) {
@@ -503,12 +493,14 @@ export function StoreProvider({ children }) {
       sendToGoogleAppsScript(activeScriptUrl, {
         action: 'updateUser',
         id: userId,
+        phone: targetUser?.phone || '',
         status: 'rejected'
       });
     }
   };
 
   const updateUserRole = (userId, newRole) => {
+    const targetUser = users.find((u) => u.id === userId);
     const updated = users.map((u) => (u.id === userId ? { ...u, role: newRole } : u));
     updateUsersState(updated);
     if (currentUser && currentUser.id === userId) {
@@ -524,12 +516,14 @@ export function StoreProvider({ children }) {
       sendToGoogleAppsScript(activeScriptUrl, {
         action: 'updateUser',
         id: userId,
+        phone: targetUser?.phone || '',
         role: newRole
       });
     }
   };
 
   const deleteUser = (userId) => {
+    const targetUser = users.find((u) => u.id === userId);
     const updated = users.filter((u) => u.id !== userId);
     updateUsersState(updated);
     if (currentUser && currentUser.id === userId) {
@@ -543,7 +537,8 @@ export function StoreProvider({ children }) {
     if (activeScriptUrl) {
       sendToGoogleAppsScript(activeScriptUrl, {
         action: 'deleteUser',
-        id: userId
+        id: userId,
+        phone: targetUser?.phone || ''
       });
     }
   };
