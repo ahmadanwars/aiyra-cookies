@@ -106,6 +106,10 @@ export default function AdminPage() {
     storeName: settings.storeName || '',
     storeTagline: settings.storeTagline || '',
     logoUrl: settings.logoUrl || '',
+    bannerBadge: settings.bannerBadge || '',
+    bannerTitle: settings.bannerTitle || '',
+    bannerDesc: settings.bannerDesc || '',
+    bannerButtonText: settings.bannerButtonText || '',
     adminPin: settings.adminPin || '123456',
     spreadsheetId: settings.spreadsheetId || '1qNF4XHN3vjB91rjluYgVLJRJMC971dgVsXsGIppB9wg',
     googleScriptUrl: settings.googleScriptUrl || ''
@@ -120,6 +124,10 @@ export default function AdminPage() {
         storeName: settings.storeName || '',
         storeTagline: settings.storeTagline || '',
         logoUrl: settings.logoUrl || '',
+        bannerBadge: settings.bannerBadge || '',
+        bannerTitle: settings.bannerTitle || '',
+        bannerDesc: settings.bannerDesc || '',
+        bannerButtonText: settings.bannerButtonText || '',
         adminPin: settings.adminPin || '123456',
         spreadsheetId: settings.spreadsheetId || '1qNF4XHN3vjB91rjluYgVLJRJMC971dgVsXsGIppB9wg',
         googleScriptUrl: settings.googleScriptUrl || ''
@@ -335,6 +343,10 @@ export default function AdminPage() {
       storeName: storeForm.storeName.trim() || 'Aiyra Cookies',
       storeTagline: storeForm.storeTagline.trim() || 'Artisan Homemade Delights',
       logoUrl: (storeForm.logoUrl || '').trim(),
+      bannerBadge: (storeForm.bannerBadge || '').trim(),
+      bannerTitle: (storeForm.bannerTitle || '').trim(),
+      bannerDesc: (storeForm.bannerDesc || '').trim(),
+      bannerButtonText: (storeForm.bannerButtonText || '').trim(),
       adminPin: storeForm.adminPin.trim() || '123456',
       spreadsheetId: storeForm.spreadsheetId.trim() || '1qNF4XHN3vjB91rjluYgVLJRJMC971dgVsXsGIppB9wg',
       googleScriptUrl: storeForm.googleScriptUrl.trim()
@@ -608,7 +620,7 @@ function handleRequest(params) {
   // ================= 2. ADMIN DASHBOARD SCREEN =================
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-8">
-      
+
       {/* Top Banner & Quick Controls */}
       <div className="bg-white rounded-3xl p-5 sm:p-6 border border-cookie-100 shadow-xs flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
         <div className="flex items-center gap-3.5">
@@ -637,9 +649,11 @@ function handleRequest(params) {
             onClick={() => setIsBannerModalOpen(true)}
             className="bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs"
             title="Kelola foto slide pada banner coklat dan ubah logo toko"
+            title="Kelola tulisan banner, foto slide pada banner coklat, dan ubah logo toko"
           >
             <Sparkles className="w-4 h-4 text-amber-700" />
             <span>Foto Slide & Logo</span>
+            <span>Banner, Teks & Logo</span>
           </button>
           <Link
             href="/"
@@ -737,7 +751,7 @@ function handleRequest(params) {
       {/* 1. ORDER WAITING LIST & APPROVAL SECTION                */}
       {/* ======================================================== */}
       <div className="bg-white rounded-3xl border border-cookie-100 shadow-xs overflow-hidden space-y-0">
-        
+
         {/* Header */}
         <div className="p-4 sm:p-6 border-b border-cookie-100 flex flex-col md:flex-row gap-3 items-start md:items-center justify-between bg-cookie-50/50">
           <div>
@@ -759,11 +773,10 @@ function handleRequest(params) {
             <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-neutral-200">
               <button
                 onClick={() => setOrderFilterTab('Waiting List')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
-                  orderFilterTab === 'Waiting List'
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${orderFilterTab === 'Waiting List'
                     ? 'bg-amber-500 text-white shadow-xs'
                     : 'text-neutral-600 hover:text-neutral-900'
-                }`}
+                  }`}
               >
                 <span>⏳ Waiting List</span>
                 <span className="bg-amber-100 text-amber-950 text-[10px] px-1.5 rounded-full font-extrabold">
@@ -772,21 +785,19 @@ function handleRequest(params) {
               </button>
               <button
                 onClick={() => setOrderFilterTab('Disetujui')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                  orderFilterTab === 'Disetujui'
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${orderFilterTab === 'Disetujui'
                     ? 'bg-blue-600 text-white shadow-xs'
                     : 'text-neutral-600 hover:text-neutral-900'
-                }`}
+                  }`}
               >
                 ✅ Disetujui ({approvedCount})
               </button>
               <button
                 onClick={() => setOrderFilterTab('Semua')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                  orderFilterTab === 'Semua'
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${orderFilterTab === 'Semua'
                     ? 'bg-cookie-800 text-white shadow-xs'
                     : 'text-neutral-600 hover:text-neutral-900'
-                }`}
+                  }`}
               >
                 Semua ({orders.length})
               </button>
@@ -836,17 +847,16 @@ function handleRequest(params) {
               return (
                 <div
                   key={order.invoiceId}
-                  className={`p-4 rounded-2xl border transition space-y-3 ${
-                    isWaiting
+                  className={`p-4 rounded-2xl border transition space-y-3 ${isWaiting
                       ? 'bg-amber-50/60 border-amber-300 shadow-xs'
                       : isApproved
-                      ? 'bg-blue-50/40 border-blue-200'
-                      : isShipped
-                      ? 'bg-purple-50/40 border-purple-200'
-                      : isCompleted
-                      ? 'bg-emerald-50/40 border-emerald-200'
-                      : 'bg-neutral-50 border-neutral-200'
-                  }`}
+                        ? 'bg-blue-50/40 border-blue-200'
+                        : isShipped
+                          ? 'bg-purple-50/40 border-purple-200'
+                          : isCompleted
+                            ? 'bg-emerald-50/40 border-emerald-200'
+                            : 'bg-neutral-50 border-neutral-200'
+                    }`}
                 >
                   {/* Top info */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-neutral-200/60 pb-2.5">
@@ -1059,7 +1069,7 @@ function handleRequest(params) {
               <ExternalLink className="w-3.5 h-3.5" />
               <span>Buka Google Sheets</span>
             </a>
-            
+
             <button
               onClick={handleTriggerSync}
               disabled={isSyncingSheet}
@@ -1097,11 +1107,10 @@ function handleRequest(params) {
         )}
 
         {testResult && (
-          <div className={`p-3 rounded-xl border text-xs font-bold animate-fade-in flex items-center justify-between ${
-            testResult.startsWith('🎉')
+          <div className={`p-3 rounded-xl border text-xs font-bold animate-fade-in flex items-center justify-between ${testResult.startsWith('🎉')
               ? 'bg-emerald-900/80 border-emerald-400/40 text-emerald-100'
               : 'bg-red-900/80 border-red-400/40 text-red-100'
-          }`}>
+            }`}>
             <span>{testResult}</span>
             <button onClick={() => setTestResult('')} className="text-white/60 hover:text-white">✕</button>
           </div>
@@ -1112,7 +1121,7 @@ function handleRequest(params) {
       {/* 3. PRODUCT CATALOG MANAGEMENT TABLE                     */}
       {/* ======================================================== */}
       <div className="bg-white rounded-3xl border border-cookie-100 shadow-xs overflow-hidden">
-        
+
         {/* Table Toolbar */}
         <div className="p-4 sm:p-6 border-b border-cookie-100 flex flex-col md:flex-row gap-3 items-start md:items-center justify-between bg-cookie-50/40">
           <div>
@@ -1187,7 +1196,7 @@ function handleRequest(params) {
                   const isAvailable = p.isAvailable !== false;
                   return (
                     <tr key={p.id} className="hover:bg-cookie-50/50 transition">
-                      
+
                       {/* Product Name & Photo */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
@@ -1239,11 +1248,10 @@ function handleRequest(params) {
                       <td className="py-3 px-4 text-center">
                         <button
                           onClick={() => toggleProductAvailability(p.id)}
-                          className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold transition ${
-                            isAvailable
+                          className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold transition ${isAvailable
                               ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
                               : 'bg-red-100 text-red-700 hover:bg-red-200'
-                          }`}
+                            }`}
                         >
                           {isAvailable ? (
                             <>
@@ -1313,20 +1321,18 @@ function handleRequest(params) {
               <button
                 type="button"
                 onClick={() => setUserRoleFilter('pending')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
-                  userRoleFilter === 'pending'
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${userRoleFilter === 'pending'
                     ? 'bg-amber-500 text-white shadow-xs'
                     : pendingUsersCount > 0
-                    ? 'text-amber-800 bg-amber-50 hover:bg-amber-100 font-extrabold'
-                    : 'text-neutral-600 hover:text-neutral-900'
-                }`}
+                      ? 'text-amber-800 bg-amber-50 hover:bg-amber-100 font-extrabold'
+                      : 'text-neutral-600 hover:text-neutral-900'
+                  }`}
               >
                 <span>⏳ Menunggu Approval</span>
-                <span className={`text-[10px] px-1.5 rounded-full font-extrabold ${
-                  pendingUsersCount > 0
+                <span className={`text-[10px] px-1.5 rounded-full font-extrabold ${pendingUsersCount > 0
                     ? 'bg-amber-200 text-amber-950 animate-pulse'
                     : 'bg-neutral-100 text-neutral-600'
-                }`}>
+                  }`}>
                   {pendingUsersCount}
                 </span>
               </button>
@@ -1334,9 +1340,8 @@ function handleRequest(params) {
               <button
                 type="button"
                 onClick={() => setUserRoleFilter('Semua')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                  userRoleFilter === 'Semua' ? 'bg-cookie-800 text-white shadow-xs' : 'text-neutral-600 hover:text-neutral-900'
-                }`}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${userRoleFilter === 'Semua' ? 'bg-cookie-800 text-white shadow-xs' : 'text-neutral-600 hover:text-neutral-900'
+                  }`}
               >
                 Semua ({users.length})
               </button>
@@ -1344,9 +1349,8 @@ function handleRequest(params) {
               <button
                 type="button"
                 onClick={() => setUserRoleFilter('reseller')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
-                  userRoleFilter === 'reseller' ? 'bg-emerald-700 text-white shadow-xs' : 'text-neutral-600 hover:text-neutral-900'
-                }`}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${userRoleFilter === 'reseller' ? 'bg-emerald-700 text-white shadow-xs' : 'text-neutral-600 hover:text-neutral-900'
+                  }`}
               >
                 <span>🤝 Reseller</span>
                 <span className="bg-white/20 text-[10px] px-1.5 rounded-full font-bold">{resellerCount}</span>
@@ -1355,9 +1359,8 @@ function handleRequest(params) {
               <button
                 type="button"
                 onClick={() => setUserRoleFilter('user')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
-                  userRoleFilter === 'user' ? 'bg-amber-600 text-white shadow-xs' : 'text-neutral-600 hover:text-neutral-900'
-                }`}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${userRoleFilter === 'user' ? 'bg-amber-600 text-white shadow-xs' : 'text-neutral-600 hover:text-neutral-900'
+                  }`}
               >
                 <span>👤 Pembeli</span>
                 <span className="bg-white/20 text-[10px] px-1.5 rounded-full font-bold">{customerCount}</span>
@@ -1409,23 +1412,21 @@ function handleRequest(params) {
                   return (
                     <tr
                       key={u.id}
-                      className={`transition ${
-                        isPending
+                      className={`transition ${isPending
                           ? 'bg-amber-50/50 hover:bg-amber-50'
                           : isRejected
-                          ? 'bg-red-50/30 hover:bg-red-50/50'
-                          : 'hover:bg-cookie-50/40'
-                      }`}
+                            ? 'bg-red-50/30 hover:bg-red-50/50'
+                            : 'hover:bg-cookie-50/40'
+                        }`}
                     >
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2.5">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs ${
-                            isPending
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs ${isPending
                               ? 'bg-amber-500 shadow-xs'
                               : isUserReseller
-                              ? 'bg-emerald-600'
-                              : 'bg-cookie-700'
-                          }`}>
+                                ? 'bg-emerald-600'
+                                : 'bg-cookie-700'
+                            }`}>
                             {u.fullName.charAt(0).toUpperCase()}
                           </div>
                           <div>
@@ -1458,11 +1459,10 @@ function handleRequest(params) {
                           </span>
                         ) : (
                           <div className="flex flex-col items-center gap-0.5">
-                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold ${
-                              isUserReseller
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold ${isUserReseller
                                 ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                                 : 'bg-amber-100 text-amber-900 border border-amber-300'
-                            }`}>
+                              }`}>
                               {isUserReseller ? '🤝 Mitra Reseller' : '👤 Pembeli'}
                             </span>
                             <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-0.5">
@@ -1612,7 +1612,7 @@ function handleRequest(params) {
       {/* 5. CONFIGURATION SETTINGS                                */}
       {/* ======================================================== */}
       <div className="bg-white rounded-3xl p-6 border border-cookie-100 shadow-xs space-y-6">
-        
+
         {/* BRANDING: LOGO & BANNER SLIDES MANAGEMENT */}
         <div className="p-5 rounded-2xl bg-amber-50/70 border border-amber-200/80 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1694,6 +1694,73 @@ function handleRequest(params) {
               </div>
             </div>
           </div>
+
+          {/* Quick Edit Banner Text Inputs */}
+          <div className="pt-3 border-t border-amber-200/60 space-y-3">
+            <div className="flex items-center justify-between">
+              <h5 className="font-bold text-xs text-cookie-950 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-amber-700" />
+                <span>Tulisan pada Banner Coklat Depan (Tampilan Utama):</span>
+              </h5>
+              <button
+                type="button"
+                onClick={() => setIsBannerModalOpen(true)}
+                className="text-cookie-700 hover:text-cookie-900 font-bold text-[11px] underline"
+              >
+                Atur Foto Slide & Preview Lengkap
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-bold text-neutral-600 mb-1">
+                  1. Label Badge Promo
+                </label>
+                <input
+                  type="text"
+                  value={storeForm.bannerBadge}
+                  onChange={(e) => setStoreForm({ ...storeForm, bannerBadge: e.target.value })}
+                  placeholder="Edisi Spesial Kue Kering & Hampers Premium"
+                  className="w-full text-xs px-3 py-2 rounded-xl border border-neutral-300 bg-white shadow-2xs"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-neutral-600 mb-1">
+                  2. Teks Tombol Menu Katalog
+                </label>
+                <input
+                  type="text"
+                  value={storeForm.bannerButtonText}
+                  onChange={(e) => setStoreForm({ ...storeForm, bannerButtonText: e.target.value })}
+                  placeholder="Lihat Menu Katalog"
+                  className="w-full text-xs px-3 py-2 rounded-xl border border-neutral-300 bg-white shadow-2xs"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-[11px] font-bold text-neutral-600 mb-1">
+                  3. Judul Utama Banner (Heading Besar)
+                </label>
+                <input
+                  type="text"
+                  value={storeForm.bannerTitle}
+                  onChange={(e) => setStoreForm({ ...storeForm, bannerTitle: e.target.value })}
+                  placeholder="Kelezatan Gurih & Renyah di Setiap Gigitan"
+                  className="w-full text-xs px-3 py-2 rounded-xl border border-neutral-300 font-serif font-bold text-cookie-950 bg-white shadow-2xs"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-[11px] font-bold text-neutral-600 mb-1">
+                  4. Deskripsi / Subtitle Banner
+                </label>
+                <textarea
+                  rows={2}
+                  value={storeForm.bannerDesc}
+                  onChange={(e) => setStoreForm({ ...storeForm, bannerDesc: e.target.value })}
+                  placeholder="Pilih aneka toples kue favorit Anda, tentukan jumlahnya, dan pesanan akan otomatis terkirim rapi ke WhatsApp kami!"
+                  className="w-full text-xs px-3 py-2 rounded-xl border border-neutral-300 bg-white shadow-2xs"
+                />
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 pt-2 border-t border-cookie-100">
@@ -1705,7 +1772,7 @@ function handleRequest(params) {
 
         <form onSubmit={handleSaveSettings} className="space-y-4 pt-2">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            
+
             {/* WhatsApp Tujuan */}
             <div>
               <label className="block text-xs font-bold text-neutral-700 mb-1">
@@ -1766,11 +1833,10 @@ function handleRequest(params) {
                 value={storeForm.googleScriptUrl}
                 onChange={(e) => setStoreForm({ ...storeForm, googleScriptUrl: e.target.value })}
                 placeholder="https://script.google.com/macros/s/.../exec"
-                className={`w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-2xl border font-mono shadow-xs ${
-                  storeForm.googleScriptUrl
+                className={`w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-2xl border font-mono shadow-xs ${storeForm.googleScriptUrl
                     ? 'border-emerald-400 bg-emerald-50/30 text-emerald-950 focus:ring-emerald-500'
                     : 'border-amber-300 bg-amber-50/30 text-amber-950 focus:ring-amber-500'
-                }`}
+                  }`}
               />
             </div>
 

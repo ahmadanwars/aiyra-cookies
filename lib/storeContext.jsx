@@ -116,6 +116,10 @@ export function StoreProvider({ children }) {
             ...INITIAL_SETTINGS,
             ...parsed,
             logoUrl: parsed.logoUrl !== undefined ? parsed.logoUrl : (INITIAL_SETTINGS.logoUrl || ''),
+            bannerBadge: parsed.bannerBadge || INITIAL_SETTINGS.bannerBadge,
+            bannerTitle: parsed.bannerTitle || INITIAL_SETTINGS.bannerTitle,
+            bannerDesc: parsed.bannerDesc || INITIAL_SETTINGS.bannerDesc,
+            bannerButtonText: parsed.bannerButtonText || INITIAL_SETTINGS.bannerButtonText,
             bannerSlides: (parsed.bannerSlides && Array.isArray(parsed.bannerSlides) && parsed.bannerSlides.length > 0)
               ? parsed.bannerSlides
               : INITIAL_SETTINGS.bannerSlides

@@ -14,7 +14,9 @@ import {
   Sparkles,
   Cookie,
   AlertCircle,
-  CheckCircle2
+  CheckCircle2,
+  Type,
+  RotateCcw
 } from 'lucide-react';
 import { INITIAL_SETTINGS } from '../lib/initialData';
 
@@ -56,9 +58,14 @@ const compressImageFile = (file, maxWidth, maxHeight, quality = 0.85) => {
 export default function BannerSlideModal({ isOpen, onClose }) {
   const { settings, updateSettings } = useStore();
 
-  const [activeTab, setActiveTab] = useState('slides'); // 'slides' | 'logo'
+  const [activeTab, setActiveTab] = useState('text'); // 'text' | 'slides' | 'logo'
   const [slides, setSlides] = useState([]);
   const [logoUrl, setLogoUrl] = useState('');
+  const [bannerBadge, setBannerBadge] = useState('');
+  const [bannerTitle, setBannerTitle] = useState('');
+  const [bannerDesc, setBannerDesc] = useState('');
+  const [bannerButtonText, setBannerButtonText] = useState('');
+
   const [isSaving, setIsSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -73,6 +80,10 @@ export default function BannerSlideModal({ isOpen, onClose }) {
         : JSON.parse(JSON.stringify(INITIAL_SETTINGS.bannerSlides));
       setSlides(currentSlides);
       setLogoUrl(settings.logoUrl || '');
+      setBannerBadge(settings.bannerBadge || INITIAL_SETTINGS.bannerBadge);
+      setBannerTitle(settings.bannerTitle || INITIAL_SETTINGS.bannerTitle);
+      setBannerDesc(settings.bannerDesc || INITIAL_SETTINGS.bannerDesc);
+      setBannerButtonText(settings.bannerButtonText || INITIAL_SETTINGS.bannerButtonText || 'Lihat Menu Katalog');
       setSuccessMsg('');
       setErrorMsg('');
     }
@@ -148,19 +159,35 @@ export default function BannerSlideModal({ isOpen, onClose }) {
     }
   };
 
+  // Reset text to default
+  const handleResetText = () => {
+    setBannerBadge(INITIAL_SETTINGS.bannerBadge);
+    setBannerTitle(INITIAL_SETTINGS.bannerTitle);
+    setBannerDesc(INITIAL_SETTINGS.bannerDesc);
+    setBannerButtonText(INITIAL_SETTINGS.bannerButtonText || 'Lihat Menu Katalog');
+  };
+
   const handleSaveAll = () => {
     if (slides.length === 0) {
       setErrorMsg('Minimal harus ada 1 slide banner aktif!');
       return;
     }
+    if (!bannerTitle.trim()) {
+      setErrorMsg('Judul utama banner tidak boleh kosong!');
+      return;
+    }
 
     setIsSaving(true);
     updateSettings({
+      bannerBadge: bannerBadge.trim() || INITIAL_SETTINGS.bannerBadge,
+      bannerTitle: bannerTitle.trim() || INITIAL_SETTINGS.bannerTitle,
+      bannerDesc: bannerDesc.trim() || INITIAL_SETTINGS.bannerDesc,
+      bannerButtonText: bannerButtonText.trim() || 'Lihat Menu Katalog',
       bannerSlides: slides,
       logoUrl: logoUrl.trim()
     });
 
-    setSuccessMsg('Pengaturan Slide Foto & Logo Toko berhasil disimpan!');
+    setSuccessMsg('Pengaturan Banner, Teks & Logo berhasil disimpan!');
     setTimeout(() => {
       setIsSaving(false);
       setSuccessMsg('');
@@ -184,10 +211,10 @@ export default function BannerSlideModal({ isOpen, onClose }) {
             </div>
             <div>
               <h3 className="font-serif font-bold text-base sm:text-lg">
-                Pengelola Banner Slide & Logo Toko
+                Pengelola Banner, Teks & Logo Toko
               </h3>
               <p className="text-xs text-amber-200/80">
-                Atur foto slider pada banner coklat dan ubah logo identitas Aiyra Cookies
+                Atur tulisan banner coklat, kelola foto slide, dan ubah logo identitas Aiyra Cookies
               </p>
             </div>
           </div>
@@ -201,31 +228,44 @@ export default function BannerSlideModal({ isOpen, onClose }) {
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex border-b border-cookie-100 bg-cookie-50/50 px-4 pt-2 gap-2 text-xs font-bold">
+        <div className="flex border-b border-cookie-100 bg-cookie-50/50 px-4 pt-2 gap-2 text-xs font-bold overflow-x-auto">
+          <button
+            type="button"
+            onClick={() => setActiveTab('text')}
+            className={`px-4 py-2.5 rounded-t-2xl transition border-b-2 flex items-center gap-2 shrink-0 ${
+              activeTab === 'text'
+                ? 'border-cookie-700 bg-white text-cookie-950 shadow-2xs'
+                : 'border-transparent text-neutral-500 hover:text-neutral-800'
+            }`}
+          >
+            <Type className="w-4 h-4 text-cookie-700" />
+            <span>Ubah Tulisan Banner</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setActiveTab('slides')}
-            className={`px-4 py-2.5 rounded-t-2xl transition border-b-2 flex items-center gap-2 ${
+            className={`px-4 py-2.5 rounded-t-2xl transition border-b-2 flex items-center gap-2 shrink-0 ${
               activeTab === 'slides'
                 ? 'border-cookie-700 bg-white text-cookie-950 shadow-2xs'
                 : 'border-transparent text-neutral-500 hover:text-neutral-800'
             }`}
           >
             <ImageIcon className="w-4 h-4 text-cookie-700" />
-            <span>Foto Slide Banner ({slides.length})</span>
+            <span>Foto Slide ({slides.length})</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('logo')}
-            className={`px-4 py-2.5 rounded-t-2xl transition border-b-2 flex items-center gap-2 ${
+            className={`px-4 py-2.5 rounded-t-2xl transition border-b-2 flex items-center gap-2 shrink-0 ${
               activeTab === 'logo'
                 ? 'border-cookie-700 bg-white text-cookie-950 shadow-2xs'
                 : 'border-transparent text-neutral-500 hover:text-neutral-800'
             }`}
           >
             <Cookie className="w-4 h-4 text-cookie-700" />
-            <span>Ubah Logo Toko / Admin</span>
+            <span>Logo Toko</span>
           </button>
         </div>
 
@@ -246,7 +286,118 @@ export default function BannerSlideModal({ isOpen, onClose }) {
         {/* Modal Body */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
           
-          {/* TAB 1: SLIDES MANAGEMENT */}
+          {/* TAB 1: BANNER TEXT EDITING */}
+          {activeTab === 'text' && (
+            <div className="space-y-4 text-xs">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-bold text-sm text-cookie-950">Ubah Tulisan pada Banner Coklat</h4>
+                  <p className="text-neutral-500">
+                    Sesuaikan judul utama, label badge promo, dan deskripsi sambutan untuk pembeli di halaman depan.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleResetText}
+                  className="text-cookie-700 hover:text-cookie-900 font-bold text-xs flex items-center gap-1 underline transition"
+                  title="Kembalikan teks ke contoh asli"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reset Bawaan</span>
+                </button>
+              </div>
+
+              {/* LIVE PREVIEW BOX */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-cookie-950 via-cookie-900 to-amber-950 text-white shadow-md border border-cookie-800 space-y-2.5">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-amber-300/70 block">
+                  Pratinjau Tampilan Banner:
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-[11px] font-semibold bg-white/15 text-amber-200 border border-white/20">
+                    <Sparkles className="w-3 h-3" />
+                    {bannerBadge || 'Label Badge'}
+                  </span>
+                </div>
+                <h3 className="font-serif font-extrabold text-lg sm:text-xl md:text-2xl leading-tight">
+                  {bannerTitle || 'Kelezatan Gurih & Renyah di Setiap Gigitan'}
+                </h3>
+                <p className="text-amber-100/80 text-xs leading-relaxed max-w-xl">
+                  {bannerDesc || 'Pilih aneka toples kue favorit Anda...'}
+                </p>
+                <div className="pt-1 flex items-center gap-2">
+                  <span className="bg-amber-400 text-cookie-950 font-bold px-3 py-1 rounded-xl text-[11px] shadow-xs flex items-center gap-1">
+                    <span>{bannerButtonText || 'Lihat Menu Katalog'}</span>
+                    <span>↓</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* FORM INPUTS */}
+              <div className="space-y-3.5 bg-neutral-50 p-4 rounded-2xl border border-neutral-200">
+                {/* 1. Label Badge */}
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 mb-1">
+                    Label Badge Promo (Pojok Kiri Atas)
+                  </label>
+                  <input
+                    type="text"
+                    value={bannerBadge}
+                    onChange={(e) => setBannerBadge(e.target.value)}
+                    placeholder="Edisi Spesial Kue Kering & Hampers Premium"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 text-xs sm:text-sm font-medium text-neutral-900 focus:ring-1 focus:ring-cookie-500 bg-white shadow-2xs"
+                  />
+                  <p className="text-[11px] text-neutral-400 mt-1">
+                    Contoh: <em>Edisi Spesial Lebaran</em>, <em>Pre-Order Hampers Idul Fitri</em>, atau <em>Promo Kue Kering 2026</em>
+                  </p>
+                </div>
+
+                {/* 2. Judul Utama (Heading) */}
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 mb-1">
+                    Judul Utama Banner (Heading Besar) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={bannerTitle}
+                    onChange={(e) => setBannerTitle(e.target.value)}
+                    placeholder="Kelezatan Gurih & Renyah di Setiap Gigitan"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 text-xs sm:text-sm font-serif font-bold text-cookie-950 focus:ring-1 focus:ring-cookie-500 bg-white shadow-2xs"
+                  />
+                </div>
+
+                {/* 3. Deskripsi / Subtitle */}
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 mb-1">
+                    Deskripsi / Penjelasan Singkat
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={bannerDesc}
+                    onChange={(e) => setBannerDesc(e.target.value)}
+                    placeholder="Pilih aneka toples kue favorit Anda, tentukan jumlahnya, dan pesanan akan otomatis terkirim rapi ke WhatsApp kami!"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 text-xs sm:text-sm text-neutral-800 focus:ring-1 focus:ring-cookie-500 bg-white shadow-2xs"
+                  />
+                </div>
+
+                {/* 4. Teks Tombol Menu Katalog */}
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 mb-1">
+                    Teks Tombol Menu Katalog (Tombol Kuning)
+                  </label>
+                  <input
+                    type="text"
+                    value={bannerButtonText}
+                    onChange={(e) => setBannerButtonText(e.target.value)}
+                    placeholder="Lihat Menu Katalog"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 text-xs sm:text-sm font-semibold text-neutral-800 focus:ring-1 focus:ring-cookie-500 bg-white shadow-2xs"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: SLIDES MANAGEMENT */}
           {activeTab === 'slides' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -400,7 +551,7 @@ export default function BannerSlideModal({ isOpen, onClose }) {
             </div>
           )}
 
-          {/* TAB 2: LOGO MANAGEMENT */}
+          {/* TAB 3: LOGO MANAGEMENT */}
           {activeTab === 'logo' && (
             <div className="space-y-4 text-xs">
               <div>
