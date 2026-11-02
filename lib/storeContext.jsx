@@ -129,6 +129,9 @@ export function StoreProvider({ children }) {
               : INITIAL_SETTINGS.bannerSlides
           };
           setSettings(currentSettings);
+          try {
+            localStorage.setItem('aiyra_settings', JSON.stringify(currentSettings));
+          } catch (e) {}
         } catch (e) {
           console.error('Failed to parse settings', e);
           currentSettings = INITIAL_SETTINGS;
