@@ -214,11 +214,11 @@ export function StoreProvider({ children }) {
             setUsers((prev) => {
               const map = new Map();
               prev.forEach((u) => {
-                const k = u.id || (u.phone ? u.phone.replace(/[^0-9]/g, '') : '');
+                const k = (u.phone ? String(u.phone).replace(/[^0-9]/g, '') : '') || u.id;
                 if (k) map.set(k, u);
               });
               res.users.forEach((cu) => {
-                const k = cu.id || (cu.phone ? cu.phone.replace(/[^0-9]/g, '') : '');
+                const k = (cu.phone ? String(cu.phone).replace(/[^0-9]/g, '') : '') || cu.id;
                 if (!k) return;
                 const ex = map.get(k);
                 map.set(k, ex ? { ...ex, ...cu } : { ...cu, status: cu.status || 'approved', role: cu.role || 'user' });
@@ -303,13 +303,14 @@ export function StoreProvider({ children }) {
   const syncCloudData = async () => {
     setIsSyncingCloud(true);
     try {
-      const scriptUrl = settings.googleScriptUrl;
-      const sheetId = settings.spreadsheetId;
+      const scriptUrl = settings.googleScriptUrl || INITIAL_SETTINGS.googleScriptUrl;
+      const sheetId = settings.spreadsheetId || INITIAL_SETTINGS.spreadsheetId;
       const res = await fetchCloudDatabase(scriptUrl, sheetId);
 
       if (res && res.success) {
         let orderCount = 0;
         let userCount = 0;
+        let syncedUsersList = null;
 
         // 1. Merge & Sync Orders
         if (res.orders && Array.isArray(res.orders)) {
@@ -357,12 +358,12 @@ export function StoreProvider({ children }) {
           setUsers((prevUsers) => {
             const userMap = new Map();
             prevUsers.forEach((u) => {
-              const k = u.id || (u.phone ? u.phone.replace(/[^0-9]/g, '') : '');
+              const k = (u.phone ? String(u.phone).replace(/[^0-9]/g, '') : '') || u.id;
               if (k) userMap.set(k, u);
             });
 
             res.users.forEach((cu) => {
-              const k = cu.id || (cu.phone ? cu.phone.replace(/[^0-9]/g, '') : '');
+              const k = (cu.phone ? String(cu.phone).replace(/[^0-9]/g, '') : '') || cu.id;
               if (!k) return;
               const existing = userMap.get(k);
               if (existing) {
@@ -382,6 +383,7 @@ export function StoreProvider({ children }) {
             });
 
             const mergedUsers = Array.from(userMap.values());
+            syncedUsersList = mergedUsers;
             try {
               localStorage.setItem('aiyra_users', JSON.stringify(mergedUsers));
             } catch (e) {}
@@ -399,7 +401,8 @@ export function StoreProvider({ children }) {
           source: res.source,
           orderCount,
           userCount,
-          time: timeStr
+          time: timeStr,
+          users: syncedUsersList
         };
       } else {
         return { success: false, message: res?.message || 'Gagal sinkron data cloud.' };
@@ -564,14 +567,18 @@ export function StoreProvider({ children }) {
     // If not found in local memory, sync from Cloud Google Spreadsheet automatically
     if (!found) {
       try {
-        await syncCloudData();
-        let latestUsers = users;
-        try {
-          const stored = localStorage.getItem('aiyra_users');
-          if (stored) latestUsers = JSON.parse(stored);
-        } catch (e) {}
-
-        found = checkMatch(latestUsers);
+        const syncRes = await syncCloudData();
+        if (syncRes && Array.isArray(syncRes.users) && syncRes.users.length > 0) {
+          found = checkMatch(syncRes.users);
+        }
+        if (!found) {
+          let latestUsers = users;
+          try {
+            const stored = localStorage.getItem('aiyra_users');
+            if (stored) latestUsers = JSON.parse(stored);
+          } catch (e) {}
+          found = checkMatch(latestUsers);
+        }
       } catch (err) {
         console.warn('Cloud login lookup failed:', err);
       }
