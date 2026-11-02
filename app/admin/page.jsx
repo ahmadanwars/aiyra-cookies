@@ -68,7 +68,10 @@ export default function AdminPage() {
     deleteOrder,
     clearOrders,
     syncFromGoogleSheets,
+    syncCloudData,
     isSyncingSheet,
+    isSyncingCloud,
+    lastCloudSyncTime,
     sortOrdersEarliestFirst,
     formatRupiah
   } = useStore();
@@ -268,6 +271,24 @@ export default function AdminPage() {
     }
   };
 
+  // Trigger 2-Way Cloud Database Sync (Orders & Users across all devices)
+  const handleTriggerCloudSync = async () => {
+    const res = await syncCloudData();
+    if (res.success) {
+      setApprovalToast(`🔄 Sinkron Cloud Berhasil! (${res.orderCount} pesanan & ${res.userCount} pengguna dari Google Sheets)`);
+    } else {
+      setApprovalToast(`⚠️ ${res.message || 'Gagal sinkron cloud database'}`);
+    }
+    setTimeout(() => setApprovalToast(''), 4500);
+  };
+
+  // Auto-sync cloud data when Admin Page is opened
+  useEffect(() => {
+    if (isAdmin) {
+      syncCloudData();
+    }
+  }, [isAdmin]);
+
   // Trigger Sheet Sync
   const handleTriggerSync = async () => {
     setSyncMessage('');
@@ -388,7 +409,7 @@ export default function AdminPage() {
     };
   };
 
-  const appsScriptCode = `// KODE GOOGLE APPS SCRIPT DATABASE AIYRA COOKIES
+  const appsScriptCode = `// KODE GOOGLE APPS SCRIPT DATABASE TERPUSAT AIYRA COOKIES
 // SPREADSHEET ID: 1qNF4XHN3vjB91rjluYgVLJRJMC971dgVsXsGIppB9wg
 
 var SPREADSHEET_ID = "1qNF4XHN3vjB91rjluYgVLJRJMC971dgVsXsGIppB9wg";
@@ -406,30 +427,89 @@ function doPost(e) {
   return handleRequest(params);
 }
 
-// Menerima kiriman via GET (sebagai cadangan & uji coba langsung di browser)
+// Menerima kiriman via GET (untuk tarik data & uji coba langsung)
 function doGet(e) {
   var params = e ? (e.parameter || {}) : {};
   if (!params.action) {
-    return ContentService.createTextOutput(JSON.stringify({
-      status: "ok",
-      message: "API Aiyra Cookies Siap Menerima Pesanan!"
-    })).setMimeType(ContentService.MimeType.JSON);
+    params.action = 'getAllData';
   }
   return handleRequest(params);
 }
 
-// Fungsi Utama Penyimpan Data
+// Fungsi Utama Pengelola Database Cloud
 function handleRequest(params) {
   try {
     var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var action = params.action;
 
-    // 1. SIMPAN PESANAN
-    if (params.action === 'saveOrder') {
+    // 0. AMBIL SEMUA DATA (SYNC MULTI-DEVICE 2 ARAH)
+    if (action === 'getAllData') {
+      var orders = [];
+      var orderSheet = ss.getSheetByName('Pesanan');
+      if (orderSheet && orderSheet.getLastRow() > 1) {
+        var oRows = orderSheet.getRange(2, 1, orderSheet.getLastRow() - 1, 8).getValues();
+        for (var i = 0; i < oRows.length; i++) {
+          var r = oRows[i];
+          if (r[0]) {
+            orders.push({
+              invoiceId: String(r[0]),
+              date: String(r[1] || ''),
+              customer: {
+                name: String(r[2] || 'Pelanggan'),
+                phone: String(r[3] || ''),
+                address: String(r[4] || '')
+              },
+              itemsSummary: String(r[5] || ''),
+              totalPrice: Number(r[6]) || 0,
+              status: String(r[7] || 'Waiting List')
+            });
+          }
+        }
+      }
+
+      var users = [];
+      var userSheet = ss.getSheetByName('Users');
+      if (userSheet && userSheet.getLastRow() > 1) {
+        var uRows = userSheet.getRange(2, 1, userSheet.getLastRow() - 1, 8).getValues();
+        for (var j = 0; j < uRows.length; j++) {
+          var u = uRows[j];
+          if (u[0] || u[2]) {
+            users.push({
+              id: String(u[0] || ('usr-' + j)),
+              fullName: String(u[1] || ''),
+              phone: String(u[2] || ''),
+              password: String(u[3] || ''),
+              address: String(u[4] || ''),
+              role: String(u[5] || 'user'),
+              status: String(u[6] || 'approved'),
+              registeredAt: String(u[7] || '')
+            });
+          }
+        }
+      }
+
+      return jsonResponse({ success: true, orders: orders, users: users });
+    }
+
+    // 1. SIMPAN PESANAN (saveOrder)
+    if (action === 'saveOrder') {
       var sheet = ss.getSheetByName('Pesanan') || ss.insertSheet('Pesanan');
       if (sheet.getLastRow() === 0) {
         sheet.appendRow(['invoiceId', 'date', 'customerName', 'customerPhone', 'address', 'items', 'totalPrice', 'status']);
       }
-      sheet.appendRow([
+      var existingRow = -1;
+      var lastRow = sheet.getLastRow();
+      if (lastRow > 1) {
+        var ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+        for (var k = 0; k < ids.length; k++) {
+          if (String(ids[k][0]) === String(params.invoiceId)) {
+            existingRow = k + 2;
+            break;
+          }
+        }
+      }
+
+      var rowData = [
         params.invoiceId || ('AYR-' + Date.now().toString().slice(-6)),
         params.date || new Date().toLocaleString('id-ID'),
         params.customerName || '-',
@@ -438,32 +518,68 @@ function handleRequest(params) {
         params.itemsSummary || '-',
         Number(params.totalPrice) || 0,
         params.status || 'Waiting List'
-      ]);
-      return ContentService.createTextOutput(JSON.stringify({ success: true }))
-        .setMimeType(ContentService.MimeType.JSON);
+      ];
+
+      if (existingRow > 0) {
+        sheet.getRange(existingRow, 1, 1, rowData.length).setValues([rowData]);
+      } else {
+        sheet.appendRow(rowData);
+      }
+      return jsonResponse({ success: true });
     }
 
-    // 2. UPDATE STATUS PESANAN (APPROVAL)
-    if (params.action === 'updateOrderStatus') {
+    // 2. UPDATE STATUS PESANAN (updateOrderStatus)
+    if (action === 'updateOrderStatus') {
       var sheet = ss.getSheetByName('Pesanan');
-      if (sheet) {
-        var rows = sheet.getDataRange().getValues();
-        for (var i = 1; i < rows.length; i++) {
-          if (rows[i][0] === params.invoiceId) {
-            sheet.getRange(i + 1, 8).setValue(params.status);
+      if (sheet && sheet.getLastRow() > 1) {
+        var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues();
+        for (var i = 0; i < rows.length; i++) {
+          if (String(rows[i][0]) === String(params.invoiceId)) {
+            sheet.getRange(i + 2, 8).setValue(params.status);
             break;
           }
         }
       }
-      return ContentService.createTextOutput(JSON.stringify({ success: true }))
-        .setMimeType(ContentService.MimeType.JSON);
+      return jsonResponse({ success: true });
     }
 
-    // 3. SIMPAN PENDAFTAR AKUN BARU
-    if (params.action === 'registerUser') {
+    // 3. UPDATE RINCIAN PESANAN (updateOrderDetails)
+    if (action === 'updateOrderDetails') {
+      var sheet = ss.getSheetByName('Pesanan');
+      if (sheet && sheet.getLastRow() > 1) {
+        var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues();
+        for (var i = 0; i < rows.length; i++) {
+          if (String(rows[i][0]) === String(params.invoiceId)) {
+            if (params.itemsSummary) sheet.getRange(i + 2, 6).setValue(params.itemsSummary);
+            if (params.totalPrice !== undefined) sheet.getRange(i + 2, 7).setValue(Number(params.totalPrice) || 0);
+            if (params.address) sheet.getRange(i + 2, 5).setValue(params.address);
+            break;
+          }
+        }
+      }
+      return jsonResponse({ success: true });
+    }
+
+    // 4. HAPUS PESANAN (deleteOrder)
+    if (action === 'deleteOrder') {
+      var sheet = ss.getSheetByName('Pesanan');
+      if (sheet && sheet.getLastRow() > 1) {
+        var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues();
+        for (var i = 0; i < rows.length; i++) {
+          if (String(rows[i][0]) === String(params.invoiceId)) {
+            sheet.deleteRow(i + 2);
+            break;
+          }
+        }
+      }
+      return jsonResponse({ success: true });
+    }
+
+    // 5. SIMPAN PENDAFTAR AKUN BARU (registerUser)
+    if (action === 'registerUser') {
       var sheet = ss.getSheetByName('Users') || ss.insertSheet('Users');
       if (sheet.getLastRow() === 0) {
-        sheet.appendRow(['id', 'fullName', 'phone', 'password', 'address', 'registeredAt']);
+        sheet.appendRow(['id', 'fullName', 'phone', 'password', 'address', 'role', 'status', 'registeredAt']);
       }
       sheet.appendRow([
         params.id || ('usr-' + Date.now()),
@@ -471,18 +587,53 @@ function handleRequest(params) {
         params.phone || '-',
         params.password || '-',
         params.address || '-',
+        params.role || 'user',
+        params.status || 'pending',
         new Date().toISOString()
       ]);
-      return ContentService.createTextOutput(JSON.stringify({ success: true }))
-        .setMimeType(ContentService.MimeType.JSON);
+      return jsonResponse({ success: true });
     }
 
-    return ContentService.createTextOutput(JSON.stringify({ success: false, error: 'Unknown action' }))
-      .setMimeType(ContentService.MimeType.JSON);
+    // 6. UPDATE STATUS / ROLE USER (updateUser)
+    if (action === 'updateUser') {
+      var sheet = ss.getSheetByName('Users');
+      if (sheet && sheet.getLastRow() > 1) {
+        var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues();
+        for (var i = 0; i < rows.length; i++) {
+          if (String(rows[i][0]) === String(params.id)) {
+            if (params.role) sheet.getRange(i + 2, 6).setValue(params.role);
+            if (params.status) sheet.getRange(i + 2, 7).setValue(params.status);
+            break;
+          }
+        }
+      }
+      return jsonResponse({ success: true });
+    }
+
+    // 7. HAPUS AKUN USER (deleteUser)
+    if (action === 'deleteUser') {
+      var sheet = ss.getSheetByName('Users');
+      if (sheet && sheet.getLastRow() > 1) {
+        var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues();
+        for (var i = 0; i < rows.length; i++) {
+          if (String(rows[i][0]) === String(params.id)) {
+            sheet.deleteRow(i + 2);
+            break;
+          }
+        }
+      }
+      return jsonResponse({ success: true });
+    }
+
+    return jsonResponse({ success: false, error: 'Unknown action: ' + action });
   } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({ success: false, error: err.toString() }))
-      .setMimeType(ContentService.MimeType.JSON);
+    return jsonResponse({ success: false, error: err.toString() });
   }
+}
+
+function jsonResponse(data) {
+  return ContentService.createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
 }`;
 
   // ================= 1. LOGIN SCREEN IF NOT AUTHENTICATED =================
@@ -644,15 +795,25 @@ function handleRequest(params) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* SINKRON DATA CLOUD (MULTI-DEVICE) */}
+          <button
+            type="button"
+            onClick={handleTriggerCloudSync}
+            disabled={isSyncingCloud}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+            title="Tarik data pesanan dan akun terbaru dari Google Spreadsheet agar semua perangkat admin langsung sinkron"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncingCloud ? 'animate-spin' : ''}`} />
+            <span>{isSyncingCloud ? 'Menyinkronkan...' : 'Sinkron Cloud'}</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setIsBannerModalOpen(true)}
             className="bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs"
-            title="Kelola foto slide pada banner coklat dan ubah logo toko"
             title="Kelola tulisan banner, foto slide pada banner coklat, dan ubah logo toko"
           >
             <Sparkles className="w-4 h-4 text-amber-700" />
-            <span>Foto Slide & Logo</span>
             <span>Banner, Teks & Logo</span>
           </button>
           <Link
@@ -669,6 +830,28 @@ function handleRequest(params) {
             Keluar Admin
           </button>
         </div>
+      </div>
+
+      {/* CLOUD SYNC STATUS PILL (MULTI-DEVICE) */}
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-neutral-600 bg-white px-5 py-3 rounded-2xl border border-cookie-100 shadow-2xs">
+        <div className="flex items-center gap-2.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+          <div>
+            <span className="font-bold text-cookie-950">Database Cloud Google Sheets: </span>
+            <span className="text-neutral-500">
+              {lastCloudSyncTime ? `Sinkron terakhir pukul ${lastCloudSyncTime}` : 'Otomatis tersinkron antar perangkat admin'}
+            </span>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={handleTriggerCloudSync}
+          disabled={isSyncingCloud}
+          className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition text-xs disabled:opacity-50"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${isSyncingCloud ? 'animate-spin' : ''}`} />
+          <span>{isSyncingCloud ? 'Menyinkronkan...' : 'Sinkronkan Sekarang'}</span>
+        </button>
       </div>
 
       {/* STATS OVERVIEW */}

@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { INITIAL_PRODUCTS, INITIAL_SETTINGS, INITIAL_USERS, INITIAL_ORDERS } from './initialData';
-import { fetchSheetData, sendToGoogleAppsScript } from './googleSheets';
+import { fetchSheetData, sendToGoogleAppsScript, fetchCloudDatabase } from './googleSheets';
 
 const StoreContext = createContext(null);
 
@@ -68,6 +68,8 @@ export function StoreProvider({ children }) {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isWaitingListOpen, setIsWaitingListOpen] = useState(false);
   const [isSyncingSheet, setIsSyncingSheet] = useState(false);
+  const [isSyncingCloud, setIsSyncingCloud] = useState(false);
+  const [lastCloudSyncTime, setLastCloudSyncTime] = useState(null);
 
   // Load from LocalStorage on mount & Sync Sheet
   useEffect(() => {
@@ -184,6 +186,48 @@ export function StoreProvider({ children }) {
         }
       }).catch((e) => console.log('Spreadsheet Produk belum terisi, menggunakan katalog bawaan.'));
     }
+
+    // Auto-sync Cloud Database (Orders & Users) for multi-device synchronization
+    if (currentSettings.googleScriptUrl || currentSettings.spreadsheetId) {
+      fetchCloudDatabase(currentSettings.googleScriptUrl, currentSettings.spreadsheetId).then((res) => {
+        if (res && res.success) {
+          if (res.orders && Array.isArray(res.orders) && res.orders.length > 0) {
+            setOrders((prev) => {
+              const map = new Map();
+              prev.forEach((o) => o.invoiceId && map.set(o.invoiceId, o));
+              res.orders.forEach((co) => {
+                if (!co.invoiceId) return;
+                const ex = map.get(co.invoiceId);
+                map.set(co.invoiceId, ex ? { ...ex, ...co } : { ...co, timestamp: getOrderTimestamp(co) || Date.now() });
+              });
+              const sorted = sortOrdersEarliestFirst(Array.from(map.values()), Array.from(map.values()));
+              try { localStorage.setItem('aiyra_orders', JSON.stringify(sorted)); } catch (e) {}
+              return sorted;
+            });
+          }
+          if (res.users && Array.isArray(res.users) && res.users.length > 0) {
+            setUsers((prev) => {
+              const map = new Map();
+              prev.forEach((u) => {
+                const k = u.id || (u.phone ? u.phone.replace(/[^0-9]/g, '') : '');
+                if (k) map.set(k, u);
+              });
+              res.users.forEach((cu) => {
+                const k = cu.id || (cu.phone ? cu.phone.replace(/[^0-9]/g, '') : '');
+                if (!k) return;
+                const ex = map.get(k);
+                map.set(k, ex ? { ...ex, ...cu } : { ...cu, status: cu.status || 'approved', role: cu.role || 'user' });
+              });
+              const merged = Array.from(map.values());
+              try { localStorage.setItem('aiyra_users', JSON.stringify(merged)); } catch (e) {}
+              return merged;
+            });
+          }
+          const now = new Date();
+          setLastCloudSyncTime(now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }));
+        }
+      }).catch((err) => console.log('Auto cloud sync skipped:', err));
+    }
   }, []);
 
   // Helper to persist products
@@ -250,6 +294,119 @@ export function StoreProvider({ children }) {
     }
   };
 
+  // ================= 2-WAY CLOUD SYNC (MULTI-DEVICE ORDERS & USERS) =================
+  const syncCloudData = async () => {
+    setIsSyncingCloud(true);
+    try {
+      const scriptUrl = settings.googleScriptUrl;
+      const sheetId = settings.spreadsheetId;
+      const res = await fetchCloudDatabase(scriptUrl, sheetId);
+
+      if (res && res.success) {
+        let orderCount = 0;
+        let userCount = 0;
+
+        // 1. Merge & Sync Orders
+        if (res.orders && Array.isArray(res.orders)) {
+          setOrders((prevOrders) => {
+            const orderMap = new Map();
+            prevOrders.forEach((o) => {
+              if (o.invoiceId) orderMap.set(o.invoiceId, o);
+            });
+
+            res.orders.forEach((co) => {
+              if (!co.invoiceId) return;
+              const existing = orderMap.get(co.invoiceId);
+              if (existing) {
+                orderMap.set(co.invoiceId, {
+                  ...existing,
+                  ...co,
+                  status: co.status || existing.status,
+                  customer: {
+                    ...existing.customer,
+                    ...co.customer
+                  },
+                  totalPrice: Number(co.totalPrice) || existing.totalPrice,
+                  itemsSummary: co.itemsSummary || existing.itemsSummary
+                });
+              } else {
+                orderMap.set(co.invoiceId, {
+                  ...co,
+                  timestamp: getOrderTimestamp(co) || Date.now()
+                });
+              }
+            });
+
+            const mergedList = Array.from(orderMap.values());
+            const sorted = sortOrdersEarliestFirst(mergedList, mergedList);
+            try {
+              localStorage.setItem('aiyra_orders', JSON.stringify(sorted));
+            } catch (e) {}
+            orderCount = sorted.length;
+            return sorted;
+          });
+        }
+
+        // 2. Merge & Sync Users
+        if (res.users && Array.isArray(res.users)) {
+          setUsers((prevUsers) => {
+            const userMap = new Map();
+            prevUsers.forEach((u) => {
+              const k = u.id || (u.phone ? u.phone.replace(/[^0-9]/g, '') : '');
+              if (k) userMap.set(k, u);
+            });
+
+            res.users.forEach((cu) => {
+              const k = cu.id || (cu.phone ? cu.phone.replace(/[^0-9]/g, '') : '');
+              if (!k) return;
+              const existing = userMap.get(k);
+              if (existing) {
+                userMap.set(k, {
+                  ...existing,
+                  ...cu,
+                  status: cu.status || existing.status,
+                  role: cu.role || existing.role
+                });
+              } else {
+                userMap.set(k, {
+                  ...cu,
+                  status: cu.status || 'approved',
+                  role: cu.role || 'user'
+                });
+              }
+            });
+
+            const mergedUsers = Array.from(userMap.values());
+            try {
+              localStorage.setItem('aiyra_users', JSON.stringify(mergedUsers));
+            } catch (e) {}
+            userCount = mergedUsers.length;
+            return mergedUsers;
+          });
+        }
+
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+        setLastCloudSyncTime(timeStr);
+
+        return {
+          success: true,
+          source: res.source,
+          orderCount,
+          userCount,
+          time: timeStr
+        };
+      } else {
+        return { success: false, message: res?.message || 'Gagal sinkron data cloud.' };
+      }
+    } catch (err) {
+      console.error('[SyncCloudData] Error:', err);
+      return { success: false, message: err.message };
+    } finally {
+      setIsSyncingCloud(false);
+    }
+  };
+
   // ================= USER & RESELLER AUTHENTICATION =================
   const registerUser = ({ fullName, phone, password, address, role = 'user' }) => {
     const cleanPhone = phone.trim().replace(/[^0-9]/g, '');
@@ -298,17 +455,27 @@ export function StoreProvider({ children }) {
   };
 
   const approveUser = (userId, roleOverride) => {
+    const targetRole = roleOverride || 'user';
     const updated = users.map((u) => {
       if (u.id === userId) {
         return {
           ...u,
           status: 'approved',
-          role: roleOverride || u.role || 'user'
+          role: targetRole
         };
       }
       return u;
     });
     updateUsersState(updated);
+
+    if (settings.googleScriptUrl) {
+      sendToGoogleAppsScript(settings.googleScriptUrl, {
+        action: 'updateUser',
+        id: userId,
+        status: 'approved',
+        role: targetRole
+      });
+    }
   };
 
   const rejectUser = (userId) => {
@@ -319,6 +486,14 @@ export function StoreProvider({ children }) {
       try {
         localStorage.removeItem('aiyra_current_user');
       } catch (e) {}
+    }
+
+    if (settings.googleScriptUrl) {
+      sendToGoogleAppsScript(settings.googleScriptUrl, {
+        action: 'updateUser',
+        id: userId,
+        status: 'rejected'
+      });
     }
   };
 
@@ -332,6 +507,14 @@ export function StoreProvider({ children }) {
         localStorage.setItem('aiyra_current_user', JSON.stringify(updatedCurrent));
       } catch (e) {}
     }
+
+    if (settings.googleScriptUrl) {
+      sendToGoogleAppsScript(settings.googleScriptUrl, {
+        action: 'updateUser',
+        id: userId,
+        role: newRole
+      });
+    }
   };
 
   const deleteUser = (userId) => {
@@ -342,6 +525,13 @@ export function StoreProvider({ children }) {
       try {
         localStorage.removeItem('aiyra_current_user');
       } catch (e) {}
+    }
+
+    if (settings.googleScriptUrl) {
+      sendToGoogleAppsScript(settings.googleScriptUrl, {
+        action: 'deleteUser',
+        id: userId
+      });
     }
   };
 
@@ -601,6 +791,13 @@ export function StoreProvider({ children }) {
     } catch (e) {
       console.error('Failed to delete order', e);
     }
+
+    if (settings.googleScriptUrl) {
+      sendToGoogleAppsScript(settings.googleScriptUrl, {
+        action: 'deleteOrder',
+        invoiceId
+      });
+    }
   };
 
   const reorder = (order) => {
@@ -700,6 +897,8 @@ export function StoreProvider({ children }) {
         isHistoryOpen,
         isWaitingListOpen,
         isSyncingSheet,
+        isSyncingCloud,
+        lastCloudSyncTime,
         cartTotalQty,
         cartTotalPrice,
         waitingListCount,
@@ -709,8 +908,9 @@ export function StoreProvider({ children }) {
         formatRupiah,
         getProductPrice,
         sortOrdersEarliestFirst,
-        // Google Sheets Sync
+        // Google Sheets & Cloud Sync
         syncFromGoogleSheets,
+        syncCloudData,
         // User Auth Actions
         registerUser,
         approveUser,

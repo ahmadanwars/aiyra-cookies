@@ -1,5 +1,49 @@
 export const dynamic = 'force-dynamic';
 
+export async function GET(request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const scriptUrl = searchParams.get('scriptUrl');
+    const action = searchParams.get('action') || 'getAllData';
+
+    if (!scriptUrl) {
+      return Response.json(
+        { success: false, message: 'Google Apps Script URL belum diisi di Pengaturan Admin.' },
+        { status: 400 }
+      );
+    }
+
+    const targetUrl = `${scriptUrl}${scriptUrl.includes('?') ? '&' : '?'}action=${encodeURIComponent(action)}`;
+    console.log('[API/SHEET GET] Fetching:', targetUrl);
+
+    const response = await fetch(targetUrl, {
+      cache: 'no-store',
+      redirect: 'follow',
+    });
+
+    const text = await response.text();
+    console.log('[API/SHEET GET] Response status:', response.status);
+
+    let data = null;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {}
+
+    if (data && data.success === true) {
+      return Response.json({ success: true, data });
+    }
+
+    return Response.json({
+      success: false,
+      message: 'Gagal membaca data dari Google Apps Script.',
+      raw: text.substring(0, 300)
+    });
+  } catch (error) {
+    console.error('[API/SHEET GET] Error:', error);
+    return Response.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
+
 export async function POST(request) {
   try {
     const { scriptUrl, payload } = await request.json();
