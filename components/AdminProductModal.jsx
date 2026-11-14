@@ -4,8 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { X, Save, Image as ImageIcon, Upload, Trash2, CheckCircle2 } from 'lucide-react';
 import { CATEGORIES } from '../lib/initialData';
 
-// Utility to compress image file using canvas
-const compressImageFile = (file, maxWidth = 800, maxHeight = 800, quality = 0.85) => {
+// Utility to compress image file using canvas (optimized to stay well below Google Sheets 50,000 char cell limit)
+const compressImageFile = (file, maxWidth = 380, maxHeight = 380, quality = 0.65) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -31,7 +31,21 @@ const compressImageFile = (file, maxWidth = 800, maxHeight = 800, quality = 0.85
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', quality));
+
+        let dataUrl = canvas.toDataURL('image/jpeg', quality);
+
+        // Google Sheets batas sel adalah 50.000 karakter. Pastikan dataUrl < 38.000 karakter!
+        if (dataUrl.length > 38000) {
+          dataUrl = canvas.toDataURL('image/jpeg', 0.5);
+        }
+        if (dataUrl.length > 38000) {
+          canvas.width = Math.round(width * 0.7);
+          canvas.height = Math.round(height * 0.7);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          dataUrl = canvas.toDataURL('image/jpeg', 0.45);
+        }
+
+        resolve(dataUrl);
       };
       img.onerror = (err) => reject(err);
     };

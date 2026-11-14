@@ -90,13 +90,18 @@ export default function AdminPage() {
   };
 
   // Save Product (Add or Edit)
-  const handleSaveProduct = (productData) => {
-    if (editingProduct) {
-      updateProduct(editingProduct.id, productData);
-    } else {
-      addProduct(productData);
-    }
+  const handleSaveProduct = async (productData) => {
     setIsModalOpen(false);
+    if (editingProduct) {
+      setApprovalToast(`⏳ Memperbarui kue "${productData.name}" ke Cloud...`);
+      await updateProduct(editingProduct.id, productData);
+      setApprovalToast(`✅ Kue "${productData.name}" berhasil diperbarui & tersinkron ke semua perangkat!`);
+    } else {
+      setApprovalToast(`⏳ Menyimpan kue baru "${productData.name}" ke Cloud...`);
+      await addProduct(productData);
+      setApprovalToast(`✅ Kue baru "${productData.name}" berhasil ditambahkan & tersinkron ke semua perangkat!`);
+    }
+    setTimeout(() => setApprovalToast(''), 4500);
     setEditingProduct(null);
   };
 
@@ -360,6 +365,10 @@ export default function AdminPage() {
       <ProductManagement
         onOpenAdd={handleOpenAdd}
         onOpenEdit={handleOpenEdit}
+        setToast={(msg) => {
+          setApprovalToast(msg);
+          setTimeout(() => setApprovalToast(''), 3500);
+        }}
       />
 
       {/* 3. KELOLA PENGGUNA & RESELLER */}

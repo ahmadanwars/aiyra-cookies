@@ -71,22 +71,58 @@ export function StoreProvider({ children }) {
   const [isSyncingCloud, setIsSyncingCloud] = useState(false);
   const [lastCloudSyncTime, setLastCloudSyncTime] = useState(null);
 
+  // Tombstone helpers to prevent deleted products from being resurrected by cloud sync
+  const getDeletedProductIds = () => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const stored = localStorage.getItem('aiyra_deleted_product_ids');
+      return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+      return [];
+    }
+  };
+
+  const markDeletedProductId = (id) => {
+    if (!id || typeof window === 'undefined') return;
+    try {
+      const current = getDeletedProductIds();
+      if (!current.includes(id)) {
+        const updated = [...current, id];
+        localStorage.setItem('aiyra_deleted_product_ids', JSON.stringify(updated));
+      }
+    } catch (e) {}
+  };
+
+  const unmarkDeletedProductId = (id) => {
+    if (!id || typeof window === 'undefined') return;
+    try {
+      const current = getDeletedProductIds();
+      const updated = current.filter((d) => d !== id);
+      localStorage.setItem('aiyra_deleted_product_ids', JSON.stringify(updated));
+    } catch (e) {}
+  };
+
   // Load from LocalStorage on mount & Sync Sheet
   useEffect(() => {
     let currentSettings = INITIAL_SETTINGS;
 
     try {
-      // Load products
+      // Load products (filter out any deleted IDs)
+      const deletedIds = getDeletedProductIds();
       const savedProducts = localStorage.getItem('aiyra_products');
       if (savedProducts) {
         const parsed = JSON.parse(savedProducts);
-        const withReseller = parsed.map(p => ({
-          ...p,
-          resellerPrice: p.resellerPrice !== undefined ? Number(p.resellerPrice) : Math.round((Number(p.price) || 0) * 0.85)
-        }));
+        const withReseller = parsed
+          .filter((p) => p && !deletedIds.includes(p.id))
+          .map((p) => ({
+            ...p,
+            resellerPrice: p.resellerPrice !== undefined ? Number(p.resellerPrice) : Math.round((Number(p.price) || 0) * 0.85)
+          }));
         setProducts(withReseller);
       } else {
-        localStorage.setItem('aiyra_products', JSON.stringify(INITIAL_PRODUCTS));
+        const initialFiltered = INITIAL_PRODUCTS.filter((p) => !deletedIds.includes(p.id));
+        setProducts(initialFiltered);
+        localStorage.setItem('aiyra_products', JSON.stringify(initialFiltered));
       }
 
       // Load cart
@@ -181,18 +217,37 @@ export function StoreProvider({ children }) {
     if (currentSettings.spreadsheetId && currentSettings.syncWithSpreadsheet) {
       fetchSheetData('Produk', currentSettings.spreadsheetId).then((sheetProducts) => {
         if (sheetProducts && sheetProducts.length > 0) {
-          const formatted = sheetProducts.map((p, idx) => ({
-            id: p.id ? String(p.id) : `ck-sheet-${idx + 1}`,
-            name: p.name || 'Kue Tanpa Nama',
-            category: p.category || 'Klasik',
-            price: Number(p.price) || 0,
-            weight: p.weight || 'Toples 500gr',
-            badge: p.badge || '',
-            image: p.image || 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=500&q=80',
-            description: p.description || '',
-            isAvailable: p.isAvailable === true || p.isAvailable === 'TRUE' || p.isAvailable === 'true' || p.isAvailable === 1 || p.isAvailable === undefined
-          }));
-          updateProductsState(formatted);
+          const deletedIds = getDeletedProductIds();
+          const cleanSheetProds = sheetProducts.filter((p) => p && !String(p.id || '').startsWith('cfg-') && !deletedIds.includes(String(p.id)));
+          if (cleanSheetProds.length > 0) {
+            setProducts((prev) => {
+              const productMap = new Map();
+              cleanSheetProds.forEach((p, idx) => {
+                const prodId = p.id ? String(p.id) : `ck-sheet-${idx + 1}`;
+                if (deletedIds.includes(prodId)) return;
+                productMap.set(prodId, {
+                  id: prodId,
+                  name: p.name || 'Kue Tanpa Nama',
+                  category: p.category || 'Klasik',
+                  price: Number(p.price) || 0,
+                  resellerPrice: p.resellerPrice !== undefined ? Number(p.resellerPrice) : Math.round((Number(p.price) || 0) * 0.85),
+                  weight: p.weight || 'Toples 500gr',
+                  badge: p.badge || '',
+                  image: p.image || 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=500&q=80',
+                  description: p.description || '',
+                  isAvailable: p.isAvailable === true || p.isAvailable === 'TRUE' || p.isAvailable === 'true' || p.isAvailable === 1 || p.isAvailable === undefined
+                });
+              });
+              prev.forEach((lp) => {
+                if (!deletedIds.includes(lp.id) && !productMap.has(lp.id)) {
+                  productMap.set(lp.id, lp);
+                }
+              });
+              const merged = Array.from(productMap.values());
+              try { localStorage.setItem('aiyra_products', JSON.stringify(merged)); } catch (e) {}
+              return merged;
+            });
+          }
         }
       }).catch((e) => console.log('Spreadsheet Produk belum terisi, menggunakan katalog bawaan.'));
     }
@@ -504,23 +559,48 @@ export function StoreProvider({ children }) {
           });
         }
 
-        // 4. Merge & Sync Real Products from Google Spreadsheet (excluding system config records)
-        if (res.products && Array.isArray(res.products) && res.products.length > 0) {
-          const realProds = res.products.filter((p) => p && !String(p.id || '').startsWith('cfg-'));
-          if (realProds.length > 0) {
-            const formattedProds = realProds.map((p, idx) => ({
-              id: p.id ? String(p.id) : `ck-sheet-${idx + 1}`,
-              name: p.name || 'Kue Tanpa Nama',
-              category: p.category || 'Klasik',
-              price: Number(p.price) || 0,
-              resellerPrice: p.resellerPrice !== undefined ? Number(p.resellerPrice) : Math.round((Number(p.price) || 0) * 0.85),
-              weight: p.weight || 'Toples 500gr',
-              badge: p.badge || '',
-              image: p.image || 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=500&q=80',
-              description: p.description || '',
-              isAvailable: p.isAvailable === true || p.isAvailable === 'TRUE' || p.isAvailable === 'true' || p.isAvailable === 1 || p.isAvailable === undefined
-            }));
-            updateProductsState(formattedProds);
+        // 4. Merge & Sync Real Products from Google Spreadsheet (excluding system config records & deleted tombstones)
+        if (res.products && Array.isArray(res.products)) {
+          const deletedIds = getDeletedProductIds();
+          const cloudRealProds = res.products.filter(
+            (p) => p && !String(p.id || '').startsWith('cfg-') && !deletedIds.includes(String(p.id))
+          );
+
+          if (cloudRealProds.length > 0) {
+            setProducts((prev) => {
+              const productMap = new Map();
+
+              cloudRealProds.forEach((p, idx) => {
+                const prodId = p.id ? String(p.id) : `ck-sheet-${idx + 1}`;
+                if (deletedIds.includes(prodId)) return;
+                productMap.set(prodId, {
+                  id: prodId,
+                  name: p.name || 'Kue Tanpa Nama',
+                  category: p.category || 'Klasik',
+                  price: Number(p.price) || 0,
+                  resellerPrice: p.resellerPrice !== undefined ? Number(p.resellerPrice) : Math.round((Number(p.price) || 0) * 0.85),
+                  weight: p.weight || 'Toples 500gr',
+                  badge: p.badge || '',
+                  image: p.image || 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=500&q=80',
+                  description: p.description || '',
+                  isAvailable: p.isAvailable === true || p.isAvailable === 'TRUE' || p.isAvailable === 'true' || p.isAvailable === 1 || p.isAvailable === undefined
+                });
+              });
+
+              // Jika ada produk lokal yang baru ditambahkan/dimiliki dan tidak dihapus, tetap pertahankan!
+              prev.forEach((localProd) => {
+                if (deletedIds.includes(localProd.id)) return;
+                if (!productMap.has(localProd.id)) {
+                  productMap.set(localProd.id, localProd);
+                }
+              });
+
+              const mergedList = Array.from(productMap.values());
+              try {
+                localStorage.setItem('aiyra_products', JSON.stringify(mergedList));
+              } catch (e) {}
+              return mergedList;
+            });
           }
         }
 
@@ -764,7 +844,7 @@ export function StoreProvider({ children }) {
   };
 
   // ================= ADMIN PRODUCT MANAGEMENT =================
-  const addProduct = (productData) => {
+  const addProduct = async (productData) => {
     const priceNum = Number(productData.price) || 0;
     const resellerNum = productData.resellerPrice !== undefined && productData.resellerPrice !== ''
       ? Number(productData.resellerPrice)
@@ -777,22 +857,34 @@ export function StoreProvider({ children }) {
       price: priceNum,
       resellerPrice: resellerNum
     };
-    const updated = [newProduct, ...products];
+
+    unmarkDeletedProductId(newProduct.id);
+    const updated = [newProduct, ...products.filter((p) => p.id !== newProduct.id)];
     updateProductsState(updated);
 
     // Sync to Google Spreadsheet tab "Produk"
-    const activeScriptUrl = settings.googleScriptUrl || INITIAL_SETTINGS.googleScriptUrl;
+    const officialFallbackUrl = 'https://script.google.com/macros/s/AKfycbx0h4DMFI456YCncZMluMYKrYIa3mSSkasWgnqtgH5KaZGQfi9Q-JSRZ8za3hf72t6Rbw/exec';
+    const activeScriptUrl = (settings.googleScriptUrl && settings.googleScriptUrl.startsWith('https://script.google.com'))
+      ? settings.googleScriptUrl
+      : (INITIAL_SETTINGS.googleScriptUrl || officialFallbackUrl);
+
     if (activeScriptUrl) {
-      sendToGoogleAppsScript(activeScriptUrl, {
-        action: 'saveProduct',
-        ...newProduct
-      });
+      try {
+        const res = await sendToGoogleAppsScript(activeScriptUrl, {
+          action: 'saveProduct',
+          ...newProduct
+        });
+        return { success: true, product: newProduct, cloudRes: res };
+      } catch (err) {
+        console.error('Error saving product to cloud:', err);
+        return { success: false, product: newProduct, error: err.message };
+      }
     }
 
-    return newProduct;
+    return { success: true, product: newProduct };
   };
 
-  const updateProduct = (id, updatedFields) => {
+  const updateProduct = async (id, updatedFields) => {
     let savedProd = null;
     const updated = products.map((p) => {
       if (p.id === id) {
@@ -813,33 +905,57 @@ export function StoreProvider({ children }) {
     });
     updateProductsState(updated);
 
-    // Sync to Google Spreadsheet tab "Produk"
-    const activeScriptUrl = settings.googleScriptUrl || INITIAL_SETTINGS.googleScriptUrl;
+    const officialFallbackUrl = 'https://script.google.com/macros/s/AKfycbx0h4DMFI456YCncZMluMYKrYIa3mSSkasWgnqtgH5KaZGQfi9Q-JSRZ8za3hf72t6Rbw/exec';
+    const activeScriptUrl = (settings.googleScriptUrl && settings.googleScriptUrl.startsWith('https://script.google.com'))
+      ? settings.googleScriptUrl
+      : (INITIAL_SETTINGS.googleScriptUrl || officialFallbackUrl);
+
     if (activeScriptUrl && savedProd) {
-      sendToGoogleAppsScript(activeScriptUrl, {
-        action: 'saveProduct',
-        ...savedProd
-      });
+      try {
+        const res = await sendToGoogleAppsScript(activeScriptUrl, {
+          action: 'saveProduct',
+          ...savedProd
+        });
+        return { success: true, product: savedProd, cloudRes: res };
+      } catch (err) {
+        console.error('Error updating product in cloud:', err);
+        return { success: false, error: err.message };
+      }
     }
+    return { success: true };
   };
 
-  const deleteProduct = (id) => {
+  const deleteProduct = async (id, productName = '') => {
+    markDeletedProductId(id);
+    const targetProd = products.find((p) => p.id === id);
+    const prodName = productName || targetProd?.name || '';
     const updated = products.filter((p) => p.id !== id);
     updateProductsState(updated);
-    const updatedCart = cart.filter((item) => item.product.id !== id);
+    const updatedCart = cart.filter((item) => item.product?.id !== id);
     updateCartState(updatedCart);
 
-    // Sync to Google Spreadsheet tab "Produk"
-    const activeScriptUrl = settings.googleScriptUrl || INITIAL_SETTINGS.googleScriptUrl;
+    const officialFallbackUrl = 'https://script.google.com/macros/s/AKfycbx0h4DMFI456YCncZMluMYKrYIa3mSSkasWgnqtgH5KaZGQfi9Q-JSRZ8za3hf72t6Rbw/exec';
+    const activeScriptUrl = (settings.googleScriptUrl && settings.googleScriptUrl.startsWith('https://script.google.com'))
+      ? settings.googleScriptUrl
+      : (INITIAL_SETTINGS.googleScriptUrl || officialFallbackUrl);
+
     if (activeScriptUrl) {
-      sendToGoogleAppsScript(activeScriptUrl, {
-        action: 'deleteProduct',
-        id
-      });
+      try {
+        const res = await sendToGoogleAppsScript(activeScriptUrl, {
+          action: 'deleteProduct',
+          id: id,
+          name: prodName
+        });
+        return { success: true, cloudRes: res };
+      } catch (err) {
+        console.error('Error deleting product from cloud:', err);
+        return { success: false, error: err.message };
+      }
     }
+    return { success: true };
   };
 
-  const toggleProductAvailability = (id) => {
+  const toggleProductAvailability = async (id) => {
     let targetAvail = true;
     const updated = products.map((p) => {
       if (p.id === id) {
@@ -850,18 +966,26 @@ export function StoreProvider({ children }) {
     });
     updateProductsState(updated);
 
-    // Sync to Google Spreadsheet tab "Produk"
-    const activeScriptUrl = settings.googleScriptUrl || INITIAL_SETTINGS.googleScriptUrl;
+    const officialFallbackUrl = 'https://script.google.com/macros/s/AKfycbx0h4DMFI456YCncZMluMYKrYIa3mSSkasWgnqtgH5KaZGQfi9Q-JSRZ8za3hf72t6Rbw/exec';
+    const activeScriptUrl = (settings.googleScriptUrl && settings.googleScriptUrl.startsWith('https://script.google.com'))
+      ? settings.googleScriptUrl
+      : (INITIAL_SETTINGS.googleScriptUrl || officialFallbackUrl);
+
     if (activeScriptUrl) {
-      sendToGoogleAppsScript(activeScriptUrl, {
-        action: 'toggleProduct',
-        id,
-        isAvailable: targetAvail
-      });
+      try {
+        await sendToGoogleAppsScript(activeScriptUrl, {
+          action: 'toggleProduct',
+          id,
+          isAvailable: targetAvail
+        });
+      } catch (e) {}
     }
   };
 
   const resetProductsToDefault = () => {
+    try {
+      localStorage.removeItem('aiyra_deleted_product_ids');
+    } catch (e) {}
     updateProductsState(INITIAL_PRODUCTS);
   };
 

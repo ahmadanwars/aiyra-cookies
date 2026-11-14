@@ -12,7 +12,7 @@ import {
   XCircle
 } from 'lucide-react';
 
-export default function ProductManagement({ onOpenAdd, onOpenEdit }) {
+export default function ProductManagement({ onOpenAdd, onOpenEdit, setToast }) {
   const {
     products,
     deleteProduct,
@@ -31,9 +31,13 @@ export default function ProductManagement({ onOpenAdd, onOpenEdit }) {
       p.category.toLowerCase().includes(adminSearch.toLowerCase())
     );
 
-  const handleDeleteProduct = (product) => {
+  const handleDeleteProduct = async (product) => {
     if (confirm(`Apakah Anda yakin ingin menghapus kue "${product.name}" dari katalog?`)) {
-      deleteProduct(product.id);
+      if (setToast) setToast(`⏳ Menghapus kue "${product.name}" dari katalog & Cloud...`);
+      await deleteProduct(product.id, product.name);
+      if (setToast) {
+        setToast(`🗑️ Kue "${product.name}" berhasil dihapus dari katalog & Google Sheets!`);
+      }
     }
   };
 
