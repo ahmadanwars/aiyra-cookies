@@ -27,7 +27,8 @@ export default function SettingsTab({ onOpenBannerModal, setToast }) {
     settings,
     updateSettings,
     syncFromGoogleSheets,
-    isSyncingSheet
+    isSyncingSheet,
+    syncCloudData
   } = useStore();
 
   const [storeForm, setStoreForm] = useState({
@@ -51,6 +52,7 @@ export default function SettingsTab({ onOpenBannerModal, setToast }) {
   const [settingsSaved, setSettingsSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingPinOnly, setIsSavingPinOnly] = useState(false);
+  const [isRefreshingCloud, setIsRefreshingCloud] = useState(false);
   const [pinChangeMsg, setPinChangeMsg] = useState('');
   const [isFormDirty, setIsFormDirty] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
@@ -58,6 +60,24 @@ export default function SettingsTab({ onOpenBannerModal, setToast }) {
   const [copiedCode, setCopiedCode] = useState(false);
   const [isTestingSheet, setIsTestingSheet] = useState(false);
   const [testResult, setTestResult] = useState('');
+
+  const handleRefreshPinFromCloud = async () => {
+    setIsRefreshingCloud(true);
+    setPinChangeMsg('');
+    try {
+      const res = await syncCloudData();
+      if (res && res.success) {
+        setPinChangeMsg(`🔄 Sinkronisasi Cloud selesai! PIN saat ini: "${settings?.adminPin || '123456'}".`);
+        if (setToast) setToast(`🔄 Data PIN dan Toko berhasil disinkronkan dari Google Sheets!`);
+      } else {
+        alert(res?.message || 'Gagal sinkron dari Google Sheets');
+      }
+    } catch (err) {
+      alert('Gagal mengambil data dari cloud: ' + err.message);
+    } finally {
+      setIsRefreshingCloud(false);
+    }
+  };
 
   useEffect(() => {
     if (settings && !isFormDirty) {
@@ -982,14 +1002,26 @@ function jsonResponse(data) {
                     {showActivePin ? (settings?.adminPin || '123456') : '••••••'}
                   </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowActivePin(!showActivePin)}
-                  className="text-cookie-800 hover:text-cookie-950 text-xs font-bold flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-white/80 transition cursor-pointer"
-                >
-                  {showActivePin ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                  <span>{showActivePin ? 'Sembunyikan Angka' : 'Tampilkan Angka PIN'}</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleRefreshPinFromCloud}
+                    disabled={isRefreshingCloud}
+                    className="text-cookie-900 bg-white/80 hover:bg-white text-xs font-bold flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-300/80 shadow-2xs hover:shadow-xs transition cursor-pointer"
+                    title="Tarik PIN terbaru langsung dari Google Sheets"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 text-cookie-700 ${isRefreshingCloud ? 'animate-spin' : ''}`} />
+                    <span>{isRefreshingCloud ? 'Menyinkronkan...' : 'Muat Ulang dari Cloud'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowActivePin(!showActivePin)}
+                    className="text-cookie-800 hover:text-cookie-950 text-xs font-bold flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-white/80 transition cursor-pointer"
+                  >
+                    {showActivePin ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    <span>{showActivePin ? 'Sembunyikan' : 'Tampilkan'}</span>
+                  </button>
+                </div>
               </div>
 
               {/* Form Input PIN Baru */}

@@ -1071,7 +1071,13 @@ export function StoreProvider({ children }) {
     }
 
     // Cloud Sync: Kirim ke Google Apps Script agar tersinkronisasi ke seluruh perangkat lain
-    const activeScriptUrl = merged.googleScriptUrl || settings.googleScriptUrl || INITIAL_SETTINGS.googleScriptUrl;
+    const officialFallbackUrl = 'https://script.google.com/macros/s/AKfycbx0h4DMFI456YCncZMluMYKrYIa3mSSkasWgnqtgH5KaZGQfi9Q-JSRZ8za3hf72t6Rbw/exec';
+    const activeScriptUrl = (merged.googleScriptUrl && merged.googleScriptUrl.startsWith('https://script.google.com'))
+      ? merged.googleScriptUrl
+      : (settings.googleScriptUrl && settings.googleScriptUrl.startsWith('https://script.google.com')
+        ? settings.googleScriptUrl
+        : (INITIAL_SETTINGS.googleScriptUrl || officialFallbackUrl));
+
     if (activeScriptUrl) {
       // Sanitize config payload to prevent exceeding Google Sheets cell limit (50k chars)
       const sanitizedLogoUrl = (merged.logoUrl && merged.logoUrl.startsWith('data:')) ? '' : (merged.logoUrl || '');
