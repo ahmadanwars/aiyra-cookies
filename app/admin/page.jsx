@@ -488,7 +488,29 @@ function handleRequest(params) {
         }
       }
 
-      return jsonResponse({ success: true, orders: orders, users: users });
+      var products = [];
+      var productSheet = ss.getSheetByName('Produk');
+      if (productSheet && productSheet.getLastRow() > 1) {
+        var pRows = productSheet.getRange(2, 1, productSheet.getLastRow() - 1, 9).getValues();
+        for (var p = 0; p < pRows.length; p++) {
+          var pr = pRows[p];
+          if (pr[0]) {
+            products.push({
+              id: String(pr[0]),
+              name: String(pr[1] || 'Kue Tanpa Nama'),
+              category: String(pr[2] || 'Klasik'),
+              price: Number(pr[3]) || 0,
+              weight: String(pr[4] || 'Toples 500gr'),
+              badge: String(pr[5] || ''),
+              image: String(pr[6] || ''),
+              description: String(pr[7] || ''),
+              isAvailable: String(pr[8]).toUpperCase() !== 'FALSE'
+            });
+          }
+        }
+      }
+
+      return jsonResponse({ success: true, orders: orders, users: users, products: products });
     }
 
     // 1. SIMPAN PESANAN (saveOrder)
@@ -628,6 +650,76 @@ function handleRequest(params) {
           var matchPhone = cleanTargetPhone && rowPhone === cleanTargetPhone;
           if (matchId || matchPhone) {
             sheet.deleteRow(i + 2);
+            break;
+          }
+        }
+      }
+      return jsonResponse({ success: true });
+    }
+
+    // 8. SIMPAN / EDIT PRODUK (saveProduct)
+    if (action === 'saveProduct') {
+      var sheet = ss.getSheetByName('Produk') || ss.insertSheet('Produk');
+      if (sheet.getLastRow() === 0) {
+        sheet.appendRow(['id', 'name', 'category', 'price', 'weight', 'badge', 'image', 'description', 'isAvailable']);
+      }
+      var existingRow = -1;
+      var lastRow = sheet.getLastRow();
+      if (lastRow > 1) {
+        var ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+        for (var p = 0; p < ids.length; p++) {
+          if (String(ids[p][0]) === String(params.id)) {
+            existingRow = p + 2;
+            break;
+          }
+        }
+      }
+
+      var rowData = [
+        params.id || ('ck-' + Date.now().toString().slice(-6)),
+        params.name || 'Kue Tanpa Nama',
+        params.category || 'Klasik',
+        Number(params.price) || 0,
+        params.weight || 'Toples 500gr',
+        params.badge || '',
+        params.image || 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=500&q=80',
+        params.description || '',
+        params.isAvailable === false ? 'FALSE' : 'TRUE'
+      ];
+
+      if (existingRow > 0) {
+        sheet.getRange(existingRow, 1, 1, rowData.length).setValues([rowData]);
+      } else {
+        sheet.appendRow(rowData);
+      }
+      return jsonResponse({ success: true });
+    }
+
+    // 9. HAPUS PRODUK (deleteProduct)
+    if (action === 'deleteProduct') {
+      var sheet = ss.getSheetByName('Produk');
+      if (sheet && sheet.getLastRow() > 1) {
+        var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues();
+        for (var i = 0; i < rows.length; i++) {
+          if (String(rows[i][0]) === String(params.id)) {
+            sheet.deleteRow(i + 2);
+            break;
+          }
+        }
+      }
+      return jsonResponse({ success: true });
+    }
+
+    // 10. TOGGLE KETERSEDIAAN PRODUK (toggleProduct)
+    if (action === 'toggleProduct') {
+      var sheet = ss.getSheetByName('Produk');
+      if (sheet && sheet.getLastRow() > 1) {
+        var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues();
+        for (var i = 0; i < rows.length; i++) {
+          if (String(rows[i][0]) === String(params.id)) {
+            var currentVal = sheet.getRange(i + 2, 9).getValue();
+            var newVal = (String(currentVal).toUpperCase() === 'FALSE') ? 'TRUE' : 'FALSE';
+            sheet.getRange(i + 2, 9).setValue(newVal);
             break;
           }
         }

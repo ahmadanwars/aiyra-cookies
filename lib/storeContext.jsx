@@ -237,6 +237,21 @@ export function StoreProvider({ children }) {
     }
   }, []);
 
+  // Real-time Background Auto-Polling (Multi-device synchronization every 12 seconds)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        const activeScriptUrl = settings.googleScriptUrl || INITIAL_SETTINGS.googleScriptUrl;
+        const activeSheetId = settings.spreadsheetId || INITIAL_SETTINGS.spreadsheetId;
+        if (activeScriptUrl || activeSheetId) {
+          syncCloudData().catch(() => {});
+        }
+      }
+    }, 12000);
+
+    return () => clearInterval(timer);
+  }, [settings.googleScriptUrl, settings.spreadsheetId]);
+
   // Helper to persist products
   const updateProductsState = (newProducts) => {
     setProducts(newProducts);
@@ -379,6 +394,23 @@ export function StoreProvider({ children }) {
             userCount = mergedUsers.length;
             return mergedUsers;
           });
+        }
+
+        // 3. Merge & Sync Products from Google Spreadsheet (if available)
+        if (res.products && Array.isArray(res.products) && res.products.length > 0) {
+          const formattedProds = res.products.map((p, idx) => ({
+            id: p.id ? String(p.id) : `ck-sheet-${idx + 1}`,
+            name: p.name || 'Kue Tanpa Nama',
+            category: p.category || 'Klasik',
+            price: Number(p.price) || 0,
+            resellerPrice: p.resellerPrice !== undefined ? Number(p.resellerPrice) : Math.round((Number(p.price) || 0) * 0.85),
+            weight: p.weight || 'Toples 500gr',
+            badge: p.badge || '',
+            image: p.image || 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=500&q=80',
+            description: p.description || '',
+            isAvailable: p.isAvailable === true || p.isAvailable === 'TRUE' || p.isAvailable === 'true' || p.isAvailable === 1 || p.isAvailable === undefined
+          }));
+          updateProductsState(formattedProds);
         }
 
         const now = new Date();
@@ -628,7 +660,7 @@ export function StoreProvider({ children }) {
       : Math.round(priceNum * 0.85);
 
     const newProduct = {
-      id: 'ck-' + Date.now().toString().slice(-6),
+      id: productData.id || ('ck-' + Date.now().toString().slice(-6)),
       isAvailable: true,
       ...productData,
       price: priceNum,
@@ -636,10 +668,21 @@ export function StoreProvider({ children }) {
     };
     const updated = [newProduct, ...products];
     updateProductsState(updated);
+
+    // Sync to Google Spreadsheet tab "Produk"
+    const activeScriptUrl = settings.googleScriptUrl || INITIAL_SETTINGS.googleScriptUrl;
+    if (activeScriptUrl) {
+      sendToGoogleAppsScript(activeScriptUrl, {
+        action: 'saveProduct',
+        ...newProduct
+      });
+    }
+
     return newProduct;
   };
 
   const updateProduct = (id, updatedFields) => {
+    let savedProd = null;
     const updated = products.map((p) => {
       if (p.id === id) {
         const newPrice = Number(updatedFields.price !== undefined ? updatedFields.price : p.price) || 0;
@@ -647,16 +690,26 @@ export function StoreProvider({ children }) {
           ? Number(updatedFields.resellerPrice)
           : (p.resellerPrice !== undefined ? Number(p.resellerPrice) : Math.round(newPrice * 0.85));
 
-        return {
+        savedProd = {
           ...p,
           ...updatedFields,
           price: newPrice,
           resellerPrice: newResellerPrice
         };
+        return savedProd;
       }
       return p;
     });
     updateProductsState(updated);
+
+    // Sync to Google Spreadsheet tab "Produk"
+    const activeScriptUrl = settings.googleScriptUrl || INITIAL_SETTINGS.googleScriptUrl;
+    if (activeScriptUrl && savedProd) {
+      sendToGoogleAppsScript(activeScriptUrl, {
+        action: 'saveProduct',
+        ...savedProd
+      });
+    }
   };
 
   const deleteProduct = (id) => {
@@ -664,11 +717,37 @@ export function StoreProvider({ children }) {
     updateProductsState(updated);
     const updatedCart = cart.filter((item) => item.product.id !== id);
     updateCartState(updatedCart);
+
+    // Sync to Google Spreadsheet tab "Produk"
+    const activeScriptUrl = settings.googleScriptUrl || INITIAL_SETTINGS.googleScriptUrl;
+    if (activeScriptUrl) {
+      sendToGoogleAppsScript(activeScriptUrl, {
+        action: 'deleteProduct',
+        id
+      });
+    }
   };
 
   const toggleProductAvailability = (id) => {
-    const updated = products.map((p) => (p.id === id ? { ...p, isAvailable: !p.isAvailable } : p));
+    let targetAvail = true;
+    const updated = products.map((p) => {
+      if (p.id === id) {
+        targetAvail = !p.isAvailable;
+        return { ...p, isAvailable: targetAvail };
+      }
+      return p;
+    });
     updateProductsState(updated);
+
+    // Sync to Google Spreadsheet tab "Produk"
+    const activeScriptUrl = settings.googleScriptUrl || INITIAL_SETTINGS.googleScriptUrl;
+    if (activeScriptUrl) {
+      sendToGoogleAppsScript(activeScriptUrl, {
+        action: 'toggleProduct',
+        id,
+        isAvailable: targetAvail
+      });
+    }
   };
 
   const resetProductsToDefault = () => {
