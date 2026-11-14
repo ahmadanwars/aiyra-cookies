@@ -131,7 +131,7 @@ export default function SettingsTab({ onOpenBannerModal, setToast }) {
   // Save Settings
   const handleSaveSettings = (e) => {
     e.preventDefault();
-    let cleanedWa = storeForm.adminWhatsApp.replace(/[^0-9]/g, '');
+    let cleanedWa = String(storeForm.adminWhatsApp || '').replace(/[^0-9]/g, '');
     if (cleanedWa.startsWith('0')) {
       cleanedWa = '62' + cleanedWa.substring(1);
     }

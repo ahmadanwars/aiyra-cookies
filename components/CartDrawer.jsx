@@ -132,7 +132,7 @@ export default function CartDrawer() {
     message += `Mohon info ketersediaan stok & nomor rekening pembayaran ya. Terima kasih! 🙏`;
 
     const encodedMsg = encodeURIComponent(message);
-    const targetWa = (settings.adminWhatsApp || '6281234567890').replace(/[^0-9]/g, '');
+    const targetWa = String(settings?.adminWhatsApp || '6281234567890').replace(/[^0-9]/g, '');
     const waUrl = `https://api.whatsapp.com/send?phone=${targetWa}&text=${encodedMsg}`;
 
     // Reset Form & Clear Cart

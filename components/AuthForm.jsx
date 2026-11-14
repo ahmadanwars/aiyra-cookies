@@ -40,7 +40,7 @@ export default function AuthForm() {
   const [successMessage, setSuccessMessage] = useState('');
   const [pendingNotice, setPendingNotice] = useState(null);
 
-  const cleanAdminWa = (settings.adminWhatsApp || '6281234567890').replace(/[^0-9]/g, '');
+  const cleanAdminWa = String(settings?.adminWhatsApp || '6281234567890').replace(/[^0-9]/g, '');
 
   // Handle Login Submit
   const handleLoginSubmit = async (e) => {

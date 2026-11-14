@@ -473,7 +473,7 @@ export function StoreProvider({ children }) {
     
     // Check if user already exists
     const existing = users.find(
-      (u) => u.phone.replace(/[^0-9]/g, '') === cleanPhone
+      (u) => String(u.phone || '').replace(/[^0-9]/g, '') === cleanPhone
     );
 
     if (existing) {

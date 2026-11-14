@@ -223,7 +223,7 @@ export default function HeroBannerSlider({ onOpenEditModal }) {
 
               {/* WhatsApp Contact Button */}
               <a
-                href={`https://wa.me/${(settings.adminWhatsApp || '6281234567890').replace(/[^0-9]/g, '')}`}
+                href={`https://wa.me/${String(settings?.adminWhatsApp || '6281234567890').replace(/[^0-9]/g, '')}`}
                 target="_blank"
                 rel="noreferrer"
                 className="bg-white/15 hover:bg-white/25 text-white px-4 py-3 rounded-2xl text-xs sm:text-sm font-semibold border border-white/30 backdrop-blur-md transition flex items-center gap-1.5 hover:scale-[1.02] active:scale-[0.98]"
