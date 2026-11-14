@@ -117,7 +117,9 @@ export function StoreProvider({ children }) {
           currentSettings = {
             ...INITIAL_SETTINGS,
             ...parsed,
-            googleScriptUrl: parsed.googleScriptUrl || INITIAL_SETTINGS.googleScriptUrl || '',
+            googleScriptUrl: (parsed.googleScriptUrl && !parsed.googleScriptUrl.includes('AKfycbwNayax'))
+              ? parsed.googleScriptUrl
+              : (INITIAL_SETTINGS.googleScriptUrl || ''),
             spreadsheetId: parsed.spreadsheetId || INITIAL_SETTINGS.spreadsheetId || '',
             logoUrl: parsed.logoUrl !== undefined ? parsed.logoUrl : (INITIAL_SETTINGS.logoUrl || ''),
             bannerBadge: parsed.bannerBadge || INITIAL_SETTINGS.bannerBadge,
