@@ -549,7 +549,7 @@ function handleRequest(params) {
       }
 
       var settingsToSave = params.settings || params;
-      var allowedKeys = ['bannerSlides', 'logoUrl', 'bannerBadge', 'bannerTitle', 'bannerDesc', 'bannerButtonText', 'bannerFit', 'bannerOverlay', 'showBannerText', 'storeName', 'storeTagline', 'adminWhatsApp'];
+      var allowedKeys = ['bannerSlides', 'logoUrl', 'bannerBadge', 'bannerTitle', 'bannerDesc', 'bannerButtonText', 'bannerFit', 'bannerOverlay', 'showBannerText', 'storeName', 'storeTagline', 'adminWhatsApp', 'adminPin'];
       
       for (var i = 0; i < allowedKeys.length; i++) {
         var key = allowedKeys[i];

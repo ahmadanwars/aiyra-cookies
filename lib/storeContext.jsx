@@ -238,6 +238,7 @@ export function StoreProvider({ children }) {
               const merged = {
                 ...prev,
                 ...res.settings,
+                adminPin: res.settings.adminPin ? String(res.settings.adminPin).trim() : prev.adminPin,
                 bannerSlides: (Array.isArray(res.settings.bannerSlides) && res.settings.bannerSlides.length > 0)
                   ? res.settings.bannerSlides
                   : prev.bannerSlides
@@ -429,12 +430,13 @@ export function StoreProvider({ children }) {
           updateProductsState(formattedProds);
         }
 
-        // 4. Merge & Sync Settings / Banner Slides (from Google Spreadsheet)
+        // 4. Merge & Sync Settings / Banner Slides & Admin PIN (from Google Spreadsheet)
         if (res.settings && typeof res.settings === 'object' && Object.keys(res.settings).length > 0) {
           setSettings((prev) => {
             const merged = {
               ...prev,
               ...res.settings,
+              adminPin: res.settings.adminPin ? String(res.settings.adminPin).trim() : prev.adminPin,
               bannerSlides: (Array.isArray(res.settings.bannerSlides) && res.settings.bannerSlides.length > 0)
                 ? res.settings.bannerSlides
                 : prev.bannerSlides
@@ -993,9 +995,30 @@ export function StoreProvider({ children }) {
     }
   };
 
-  const loginAdmin = (pin) => {
-    const validPin = (settings.adminPin && settings.adminPin.trim()) || '123456';
-    if (pin && pin.trim() === validPin) {
+  const loginAdmin = async (pin) => {
+    const inputPin = String(pin || '').trim();
+    if (!inputPin) return false;
+
+    let validPin = String(settings.adminPin || '123456').trim();
+
+    // Selalu periksa dan sinkronkan dengan database cloud untuk memastikan PIN multi-device akurat
+    try {
+      const scriptUrl = settings.googleScriptUrl || INITIAL_SETTINGS.googleScriptUrl;
+      const sheetId = settings.spreadsheetId || INITIAL_SETTINGS.spreadsheetId;
+      const res = await fetchCloudDatabase(scriptUrl, sheetId);
+      if (res && res.success && res.settings && res.settings.adminPin) {
+        validPin = String(res.settings.adminPin).trim();
+        setSettings((prev) => {
+          const updated = { ...prev, ...res.settings, adminPin: validPin };
+          try { localStorage.setItem('aiyra_settings', JSON.stringify(updated)); } catch (e) {}
+          return updated;
+        });
+      }
+    } catch (err) {
+      console.warn('Cloud PIN check fallback to local:', err);
+    }
+
+    if (inputPin === validPin) {
       setIsAdmin(true);
       try {
         sessionStorage.setItem('aiyra_admin_logged', 'true');

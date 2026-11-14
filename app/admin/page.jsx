@@ -55,15 +55,25 @@ export default function AdminPage() {
   const [editingOrder, setEditingOrder] = useState(null);
   const [isBannerModalOpen, setIsBannerModalOpen] = useState(false);
 
-  // Handle PIN Login
-  const handleLogin = (e) => {
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  // Handle PIN Login (Async multi-device verification)
+  const handleLogin = async (e) => {
     e.preventDefault();
-    const success = loginAdmin(pinInput.trim());
-    if (success) {
-      setPinError('');
-      setPinInput('');
-    } else {
-      setPinError('PIN Admin salah. Silakan periksa kembali.');
+    setIsLoggingIn(true);
+    setPinError('');
+    try {
+      const success = await loginAdmin(pinInput.trim());
+      if (success) {
+        setPinError('');
+        setPinInput('');
+      } else {
+        setPinError('PIN Admin salah. Silakan periksa kembali.');
+      }
+    } catch (err) {
+      setPinError('Gagal memeriksa PIN. Silakan coba lagi.');
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -107,12 +117,10 @@ export default function AdminPage() {
     setTimeout(() => setApprovalToast(''), 4500);
   };
 
-  // Auto-sync cloud data when Admin Page is opened
+  // Auto-sync cloud data when Admin Page is opened (so latest PIN from another admin is loaded)
   useEffect(() => {
-    if (isAdmin) {
-      syncCloudData();
-    }
-  }, [isAdmin]);
+    syncCloudData();
+  }, []);
 
   // Helper stats for overview
   const waitingCount = orders.filter((o) => o.status === 'Waiting List' || o.status === 'Terkirim ke WhatsApp').length;
@@ -170,9 +178,17 @@ export default function AdminPage() {
 
             <button
               type="submit"
-              className="w-full bg-cookie-800 hover:bg-cookie-900 text-white font-bold py-3 px-4 rounded-2xl text-xs sm:text-sm shadow-md hover:shadow-lg transition"
+              disabled={isLoggingIn}
+              className="w-full bg-cookie-800 hover:bg-cookie-900 text-white font-bold py-3 px-4 rounded-2xl text-xs sm:text-sm shadow-md hover:shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-60"
             >
-              Buka Panel Admin
+              {isLoggingIn ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Memeriksa PIN...</span>
+                </>
+              ) : (
+                <span>Buka Panel Admin</span>
+              )}
             </button>
 
             <div className="text-center pt-2">
