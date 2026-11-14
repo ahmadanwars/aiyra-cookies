@@ -6,7 +6,7 @@ set "PATH=%GIT_DIR%;%PATH%"
 echo ==========================================================
 echo        PUSH AIYRA COOKIES KE GITHUB REPOSITORY
 echo ==========================================================
-echo Target : https://github.com/ahmadanwars/aiyra-cookies.git
+echo Target : https://github.com/tatangerang/aiyra-cookies.git
 echo Branch : main
 echo.
 echo Sedang melakukan git push...
