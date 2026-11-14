@@ -238,12 +238,11 @@ export function StoreProvider({ children }) {
                   isAvailable: p.isAvailable === true || p.isAvailable === 'TRUE' || p.isAvailable === 'true' || p.isAvailable === 1 || p.isAvailable === undefined
                 });
               });
-              prev.forEach((lp) => {
-                if (!deletedIds.includes(lp.id) && !productMap.has(lp.id)) {
-                  productMap.set(lp.id, lp);
-                }
-              });
-              const merged = Array.from(productMap.values());
+              // Hanya pertahankan produk lokal yang baru saja dibuat (< 45 detik)
+              const recentLocal = prev.filter(
+                (lp) => lp._createdAt && (Date.now() - lp._createdAt < 45000) && !productMap.has(lp.id)
+              );
+              const merged = [...recentLocal, ...Array.from(productMap.values())];
               try { localStorage.setItem('aiyra_products', JSON.stringify(merged)); } catch (e) {}
               return merged;
             });
@@ -338,6 +337,37 @@ export function StoreProvider({ children }) {
               return merged;
             });
           }
+
+          // Sync real products from Cloud Google Sheet on mount
+          if (res.products && Array.isArray(res.products)) {
+            const deletedIds = getDeletedProductIds();
+            const cloudRealProds = res.products.filter(
+              (p) => p && !String(p.id || '').startsWith('cfg-') && !deletedIds.includes(String(p.id))
+            );
+            if (cloudRealProds.length > 0) {
+              setProducts((prev) => {
+                const cloudFormatted = cloudRealProds.map((p, idx) => ({
+                  id: p.id ? String(p.id) : `ck-sheet-${idx + 1}`,
+                  name: p.name || 'Kue Tanpa Nama',
+                  category: p.category || 'Klasik',
+                  price: Number(p.price) || 0,
+                  resellerPrice: p.resellerPrice !== undefined ? Number(p.resellerPrice) : Math.round((Number(p.price) || 0) * 0.85),
+                  weight: p.weight || 'Toples 500gr',
+                  badge: p.badge || '',
+                  image: p.image || 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=500&q=80',
+                  description: p.description || '',
+                  isAvailable: p.isAvailable === true || p.isAvailable === 'TRUE' || p.isAvailable === 'true' || p.isAvailable === 1 || p.isAvailable === undefined
+                }));
+                const recentLocal = prev.filter(
+                  (lp) => lp._createdAt && (Date.now() - lp._createdAt < 45000) && !cloudFormatted.some((cp) => cp.id === lp.id)
+                );
+                const finalProds = [...recentLocal, ...cloudFormatted];
+                try { localStorage.setItem('aiyra_products', JSON.stringify(finalProds)); } catch (e) {}
+                return finalProds;
+              });
+            }
+          }
+
           const now = new Date();
           setLastCloudSyncTime(now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }));
         }
@@ -401,11 +431,13 @@ export function StoreProvider({ children }) {
       const sheetProducts = await fetchSheetData('Produk', sheetId);
       
       if (sheetProducts && sheetProducts.length > 0) {
-        const formatted = sheetProducts.map((p, idx) => ({
+        const cleanProducts = sheetProducts.filter((p) => p && !String(p.id || '').startsWith('cfg-'));
+        const formatted = cleanProducts.map((p, idx) => ({
           id: p.id ? String(p.id) : `ck-sheet-${idx + 1}`,
           name: p.name || 'Kue Tanpa Nama',
           category: p.category || 'Klasik',
           price: Number(p.price) || 0,
+          resellerPrice: p.resellerPrice !== undefined ? Number(p.resellerPrice) : Math.round((Number(p.price) || 0) * 0.85),
           weight: p.weight || 'Toples 500gr',
           badge: p.badge || '',
           image: p.image || 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=500&q=80',
@@ -568,12 +600,9 @@ export function StoreProvider({ children }) {
 
           if (cloudRealProds.length > 0) {
             setProducts((prev) => {
-              const productMap = new Map();
-
-              cloudRealProds.forEach((p, idx) => {
+              const cloudFormatted = cloudRealProds.map((p, idx) => {
                 const prodId = p.id ? String(p.id) : `ck-sheet-${idx + 1}`;
-                if (deletedIds.includes(prodId)) return;
-                productMap.set(prodId, {
+                return {
                   id: prodId,
                   name: p.name || 'Kue Tanpa Nama',
                   category: p.category || 'Klasik',
@@ -584,18 +613,16 @@ export function StoreProvider({ children }) {
                   image: p.image || 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=500&q=80',
                   description: p.description || '',
                   isAvailable: p.isAvailable === true || p.isAvailable === 'TRUE' || p.isAvailable === 'true' || p.isAvailable === 1 || p.isAvailable === undefined
-                });
+                };
               });
 
-              // Jika ada produk lokal yang baru ditambahkan/dimiliki dan tidak dihapus, tetap pertahankan!
-              prev.forEach((localProd) => {
-                if (deletedIds.includes(localProd.id)) return;
-                if (!productMap.has(localProd.id)) {
-                  productMap.set(localProd.id, localProd);
-                }
-              });
+              // Jangan bangkitkan produk lama yang sudah dihapus dari Google Sheets!
+              // Hanya pertahankan produk lokal yang baru saja ditambahkan admin dalam 45 detik terakhir
+              const recentLocal = prev.filter(
+                (lp) => lp._createdAt && (Date.now() - lp._createdAt < 45000) && !cloudFormatted.some((cp) => cp.id === lp.id)
+              );
 
-              const mergedList = Array.from(productMap.values());
+              const mergedList = [...recentLocal, ...cloudFormatted];
               try {
                 localStorage.setItem('aiyra_products', JSON.stringify(mergedList));
               } catch (e) {}
@@ -855,7 +882,8 @@ export function StoreProvider({ children }) {
       isAvailable: true,
       ...productData,
       price: priceNum,
-      resellerPrice: resellerNum
+      resellerPrice: resellerNum,
+      _createdAt: Date.now()
     };
 
     unmarkDeletedProductId(newProduct.id);
