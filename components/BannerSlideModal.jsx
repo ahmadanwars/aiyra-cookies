@@ -65,6 +65,9 @@ export default function BannerSlideModal({ isOpen, onClose }) {
   const [bannerTitle, setBannerTitle] = useState('');
   const [bannerDesc, setBannerDesc] = useState('');
   const [bannerButtonText, setBannerButtonText] = useState('');
+  const [bannerFit, setBannerFit] = useState('full');
+  const [showBannerText, setShowBannerText] = useState(true);
+  const [bannerOverlay, setBannerOverlay] = useState('subtle');
 
   const [isSaving, setIsSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
@@ -84,6 +87,9 @@ export default function BannerSlideModal({ isOpen, onClose }) {
       setBannerTitle(settings.bannerTitle || INITIAL_SETTINGS.bannerTitle);
       setBannerDesc(settings.bannerDesc || INITIAL_SETTINGS.bannerDesc);
       setBannerButtonText(settings.bannerButtonText || INITIAL_SETTINGS.bannerButtonText || 'Lihat Menu Katalog');
+      setBannerFit(settings.bannerFit || INITIAL_SETTINGS.bannerFit || 'full');
+      setShowBannerText(settings.showBannerText !== undefined ? settings.showBannerText : (INITIAL_SETTINGS.showBannerText !== undefined ? INITIAL_SETTINGS.showBannerText : true));
+      setBannerOverlay(settings.bannerOverlay || INITIAL_SETTINGS.bannerOverlay || 'subtle');
       setSuccessMsg('');
       setErrorMsg('');
     }
@@ -135,8 +141,8 @@ export default function BannerSlideModal({ isOpen, onClose }) {
     if (!file) return;
 
     try {
-      // Compress to max 1000px, quality 0.82
-      const compressed = await compressImageFile(file, 1000, 750, 0.82);
+      // Compress with high quality & preservation of original aspect ratio (max 1920x1080)
+      const compressed = await compressImageFile(file, 1920, 1080, 0.88);
       handleUpdateSlideField(index, 'image', compressed);
     } catch (err) {
       console.error('Failed to process image', err);

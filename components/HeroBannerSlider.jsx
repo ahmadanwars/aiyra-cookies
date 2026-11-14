@@ -16,10 +16,16 @@ import Link from 'next/link';
 import { INITIAL_SETTINGS } from '../lib/initialData';
 
 export default function HeroBannerSlider({ onOpenEditModal }) {
-  const { settings, isAdmin, currentUser, isReseller } = useStore();
+  const { settings, updateSettings, isAdmin, currentUser, isReseller } = useStore();
   const slides = (settings.bannerSlides && settings.bannerSlides.length > 0)
     ? settings.bannerSlides
     : INITIAL_SETTINGS.bannerSlides;
+
+  const bannerFit = settings.bannerFit || INITIAL_SETTINGS.bannerFit || 'full';
+  const bannerOverlay = settings.bannerOverlay || INITIAL_SETTINGS.bannerOverlay || 'subtle';
+  const showBannerText = settings.showBannerText !== undefined
+    ? settings.showBannerText
+    : (INITIAL_SETTINGS.showBannerText !== undefined ? INITIAL_SETTINGS.showBannerText : true);
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -59,14 +65,18 @@ export default function HeroBannerSlider({ onOpenEditModal }) {
 
   return (
     <div
-      className="relative w-full rounded-3xl overflow-hidden shadow-2xl bg-cookie-950 text-white min-h-[460px] sm:min-h-[480px] md:min-h-[500px] flex flex-col justify-between select-none group border border-cookie-900/60"
+      className={`relative w-full rounded-3xl overflow-hidden shadow-2xl bg-cookie-950 text-white flex flex-col justify-between select-none group border border-cookie-900/60 transition-all duration-300 ${
+        bannerFit === 'full'
+          ? 'min-h-[380px] sm:min-h-[440px] md:min-h-[480px] lg:min-h-[520px]'
+          : 'min-h-[440px] sm:min-h-[480px] md:min-h-[500px]'
+      }`}
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
       {/* ======================================================== */}
       {/* 1. BACKGROUND PHOTO SLIDES (FULL BANNER)                 */}
       {/* ======================================================== */}
-      <div className="absolute inset-0 z-0">
+      <div className="absolute inset-0 z-0 overflow-hidden">
         {slides.map((slide, idx) => {
           const isActive = idx === currentIndex;
           return (
@@ -76,23 +86,48 @@ export default function HeroBannerSlider({ onOpenEditModal }) {
                 isActive ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
               }`}
             >
-              <img
-                src={slide.image}
-                alt={slide.title || 'Foto Slide Banner Aiyra Cookies'}
-                className={`w-full h-full object-cover object-center transition-transform duration-7000 ease-out ${
-                  isActive ? 'scale-105' : 'scale-100'
-                }`}
-                loading={idx === 0 ? 'eager' : 'lazy'}
-              />
+              {bannerFit === 'full' ? (
+                <>
+                  {/* Atmospheric blurred ambient backdrop */}
+                  <img
+                    src={slide.image}
+                    alt=""
+                    aria-hidden="true"
+                    className="absolute inset-0 w-full h-full object-cover filter blur-2xl opacity-40 scale-110 pointer-events-none"
+                  />
+                  {/* Clean full image preserving original aspect ratio without cropping */}
+                  <img
+                    src={slide.image}
+                    alt={slide.title || 'Foto Slide Banner Aiyra Cookies'}
+                    className="relative z-10 w-full h-full object-contain object-center transition-all duration-700 ease-out"
+                    loading={idx === 0 ? 'eager' : 'lazy'}
+                  />
+                </>
+              ) : (
+                <img
+                  src={slide.image}
+                  alt={slide.title || 'Foto Slide Banner Aiyra Cookies'}
+                  className="w-full h-full object-cover object-center transition-transform duration-7000 ease-out"
+                  loading={idx === 0 ? 'eager' : 'lazy'}
+                />
+              )}
             </div>
           );
         })}
 
         {/* DUAL GRADIENT SCRIM FOR HIGH CONTRAST & READABILITY */}
-        {/* Left-to-right dark warm brown gradient */}
-        <div className="absolute inset-0 bg-gradient-to-r from-black/92 via-cookie-950/80 to-black/35 z-20 pointer-events-none" />
-        {/* Bottom-to-top subtle darkening */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent z-20 pointer-events-none" />
+        {bannerOverlay === 'none' ? null : bannerOverlay === 'dark' ? (
+          <>
+            <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/55 to-black/25 z-20 pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent z-20 pointer-events-none" />
+          </>
+        ) : (
+          /* Subtle / Lembut (Default) */
+          <>
+            <div className="absolute inset-0 bg-gradient-to-r from-black/65 via-black/25 to-transparent z-20 pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent z-20 pointer-events-none" />
+          </>
+        )}
       </div>
 
       {/* ======================================================== */}
@@ -122,68 +157,94 @@ export default function HeroBannerSlider({ onOpenEditModal }) {
             )}
           </div>
 
-          {/* Quick Edit Button for Admin */}
-          {isAdmin && onOpenEditModal && (
-            <button
-              type="button"
-              onClick={onOpenEditModal}
-              className="bg-black/60 hover:bg-cookie-700 text-amber-200 hover:text-white font-bold text-xs px-3.5 py-2 rounded-2xl border border-amber-300/40 backdrop-blur-md shadow-lg transition flex items-center gap-1.5 self-start"
-              title="Ubah tulisan banner, foto slide penuh, dan logo toko"
-            >
-              <Edit3 className="w-3.5 h-3.5 text-amber-300" />
-              <span>Edit Banner & Teks</span>
-            </button>
+          {/* Quick Edit Buttons for Admin */}
+          {isAdmin && (
+            <div className="flex flex-wrap items-center gap-1.5 self-start">
+              {/* Quick Toggle: Fit Mode (Full vs Cover) */}
+              <button
+                type="button"
+                onClick={() => updateSettings({ bannerFit: bannerFit === 'full' ? 'cover' : 'full' })}
+                className="bg-black/60 hover:bg-cookie-700 text-amber-200 hover:text-white font-bold text-[11px] sm:text-xs px-3 py-2 rounded-2xl border border-amber-300/30 backdrop-blur-md shadow-md transition flex items-center gap-1.5"
+                title="Beralih antara Foto Penuh (Full) atau Penuhi Kotak (Cover)"
+              >
+                <span>{bannerFit === 'full' ? '🖼️ Foto: Full Utuh' : '📐 Foto: Penuh (Cover)'}</span>
+              </button>
+
+              {/* Quick Toggle: Teks On/Off */}
+              <button
+                type="button"
+                onClick={() => updateSettings({ showBannerText: !showBannerText })}
+                className="bg-black/60 hover:bg-cookie-700 text-amber-200 hover:text-white font-bold text-[11px] sm:text-xs px-3 py-2 rounded-2xl border border-amber-300/30 backdrop-blur-md shadow-md transition flex items-center gap-1.5"
+                title="Sembunyikan / Tampilkan teks pada banner"
+              >
+                <span>{showBannerText ? '👁️ Teks: Aktif' : '🚫 Teks: Sembunyi'}</span>
+              </button>
+
+              {onOpenEditModal && (
+                <button
+                  type="button"
+                  onClick={onOpenEditModal}
+                  className="bg-cookie-800 hover:bg-cookie-700 text-amber-200 hover:text-white font-bold text-[11px] sm:text-xs px-3.5 py-2 rounded-2xl border border-amber-300/40 backdrop-blur-md shadow-lg transition flex items-center gap-1.5"
+                  title="Ubah tulisan banner, foto slide penuh, dan logo toko"
+                >
+                  <Edit3 className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Edit Lengkap</span>
+                </button>
+              )}
+            </div>
           )}
         </div>
 
         {/* CENTER ROW: HEADINGS, DESCRIPTION & BUTTONS */}
-        <div className="max-w-2xl lg:max-w-3xl space-y-4 my-auto py-2">
-          {/* Main Heading */}
-          <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl font-extrabold leading-tight tracking-tight text-white drop-shadow-md">
-            {settings.bannerTitle || 'Kelezatan Gurih & Renyah di Setiap Gigitan'}
-          </h2>
+        {showBannerText && (
+          <div className="max-w-2xl lg:max-w-3xl space-y-4 my-auto py-2">
+            {/* Main Heading */}
+            <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl font-extrabold leading-tight tracking-tight text-white drop-shadow-md">
+              {settings.bannerTitle || 'Kelezatan Gurih & Renyah di Setiap Gigitan'}
+            </h2>
 
-          {/* Subtitle / Description */}
-          <p className="text-amber-100/95 text-xs sm:text-sm md:text-base leading-relaxed drop-shadow-xs max-w-xl">
-            {isReseller
-              ? 'Selamat datang Mitra Reseller! Seluruh harga katalog otomatis menerapkan harga grosir khusus reseller.'
-              : (settings.bannerDesc || 'Pilih aneka toples kue favorit Anda, tentukan jumlahnya, dan pesanan akan otomatis terkirim rapi ke WhatsApp kami!')}
-          </p>
+            {/* Subtitle / Description */}
+            <p className="text-amber-100/95 text-xs sm:text-sm md:text-base leading-relaxed drop-shadow-xs max-w-xl">
+              {isReseller
+                ? 'Selamat datang Mitra Reseller! Seluruh harga katalog otomatis menerapkan harga grosir khusus reseller.'
+                : (settings.bannerDesc || 'Pilih aneka toples kue favorit Anda, tentukan jumlahnya, dan pesanan akan otomatis terkirim rapi ke WhatsApp kami!')}
+            </p>
 
-          {/* Action Buttons */}
-          <div className="pt-2 flex flex-wrap items-center gap-3">
-            {/* Catalog Button */}
-            <a
-              href="#katalog"
-              className="bg-amber-400 hover:bg-amber-300 text-cookie-950 font-bold px-5 py-3 rounded-2xl text-xs sm:text-sm shadow-lg transition flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <span>{settings.bannerButtonText || 'Lihat Menu Katalog'}</span>
-              <ArrowDown className="w-4 h-4" />
-            </a>
-
-            {/* WhatsApp Contact Button */}
-            <a
-              href={`https://wa.me/${(settings.adminWhatsApp || '6281234567890').replace(/[^0-9]/g, '')}`}
-              target="_blank"
-              rel="noreferrer"
-              className="bg-white/15 hover:bg-white/25 text-white px-4 py-3 rounded-2xl text-xs sm:text-sm font-semibold border border-white/30 backdrop-blur-md transition flex items-center gap-1.5 hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <Phone className="w-3.5 h-3.5 text-amber-300" />
-              <span>WA: +{settings.adminWhatsApp || '6281234567890'}</span>
-            </a>
-
-            {/* Admin Panel Shortcut (if Admin) */}
-            {isAdmin && (
-              <Link
-                href="/admin"
-                className="bg-cookie-800/80 hover:bg-cookie-800 text-amber-200 px-4 py-3 rounded-2xl text-xs font-semibold border border-amber-300/30 backdrop-blur-md transition flex items-center gap-1.5"
+            {/* Action Buttons */}
+            <div className="pt-2 flex flex-wrap items-center gap-3">
+              {/* Catalog Button */}
+              <a
+                href="#katalog"
+                className="bg-amber-400 hover:bg-amber-300 text-cookie-950 font-bold px-5 py-3 rounded-2xl text-xs sm:text-sm shadow-lg transition flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98]"
               >
-                <ShieldCheck className="w-4 h-4 text-amber-300" />
-                <span>Panel Admin</span>
-              </Link>
-            )}
+                <span>{settings.bannerButtonText || 'Lihat Menu Katalog'}</span>
+                <ArrowDown className="w-4 h-4" />
+              </a>
+
+              {/* WhatsApp Contact Button */}
+              <a
+                href={`https://wa.me/${(settings.adminWhatsApp || '6281234567890').replace(/[^0-9]/g, '')}`}
+                target="_blank"
+                rel="noreferrer"
+                className="bg-white/15 hover:bg-white/25 text-white px-4 py-3 rounded-2xl text-xs sm:text-sm font-semibold border border-white/30 backdrop-blur-md transition flex items-center gap-1.5 hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <Phone className="w-3.5 h-3.5 text-amber-300" />
+                <span>WA: +{settings.adminWhatsApp || '6281234567890'}</span>
+              </a>
+
+              {/* Admin Panel Shortcut (if Admin) */}
+              {isAdmin && (
+                <Link
+                  href="/admin"
+                  className="bg-cookie-800/80 hover:bg-cookie-800 text-amber-200 px-4 py-3 rounded-2xl text-xs font-semibold border border-amber-300/30 backdrop-blur-md transition flex items-center gap-1.5"
+                >
+                  <ShieldCheck className="w-4 h-4 text-amber-300" />
+                  <span>Panel Admin</span>
+                </Link>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* BOTTOM ROW: SLIDER CONTROLS & CURRENT SLIDE CAPTION */}
         <div className="pt-6 mt-4 border-t border-white/15 flex flex-col sm:flex-row sm:items-center justify-between gap-3">

@@ -126,6 +126,9 @@ export function StoreProvider({ children }) {
             bannerTitle: parsed.bannerTitle || INITIAL_SETTINGS.bannerTitle,
             bannerDesc: parsed.bannerDesc || INITIAL_SETTINGS.bannerDesc,
             bannerButtonText: parsed.bannerButtonText || INITIAL_SETTINGS.bannerButtonText,
+            bannerFit: parsed.bannerFit || INITIAL_SETTINGS.bannerFit || 'full',
+            bannerOverlay: parsed.bannerOverlay || INITIAL_SETTINGS.bannerOverlay || 'subtle',
+            showBannerText: parsed.showBannerText !== undefined ? parsed.showBannerText : (INITIAL_SETTINGS.showBannerText !== undefined ? INITIAL_SETTINGS.showBannerText : true),
             bannerSlides: (parsed.bannerSlides && Array.isArray(parsed.bannerSlides) && parsed.bannerSlides.length > 0)
               ? parsed.bannerSlides
               : INITIAL_SETTINGS.bannerSlides
@@ -227,6 +230,19 @@ export function StoreProvider({ children }) {
               });
               const merged = Array.from(map.values());
               try { localStorage.setItem('aiyra_users', JSON.stringify(merged)); } catch (e) {}
+              return merged;
+            });
+          }
+          if (res.settings && typeof res.settings === 'object' && Object.keys(res.settings).length > 0) {
+            setSettings((prev) => {
+              const merged = {
+                ...prev,
+                ...res.settings,
+                bannerSlides: (Array.isArray(res.settings.bannerSlides) && res.settings.bannerSlides.length > 0)
+                  ? res.settings.bannerSlides
+                  : prev.bannerSlides
+              };
+              try { localStorage.setItem('aiyra_settings', JSON.stringify(merged)); } catch (e) {}
               return merged;
             });
           }
@@ -411,6 +427,21 @@ export function StoreProvider({ children }) {
             isAvailable: p.isAvailable === true || p.isAvailable === 'TRUE' || p.isAvailable === 'true' || p.isAvailable === 1 || p.isAvailable === undefined
           }));
           updateProductsState(formattedProds);
+        }
+
+        // 4. Merge & Sync Settings / Banner Slides (from Google Spreadsheet)
+        if (res.settings && typeof res.settings === 'object' && Object.keys(res.settings).length > 0) {
+          setSettings((prev) => {
+            const merged = {
+              ...prev,
+              ...res.settings,
+              bannerSlides: (Array.isArray(res.settings.bannerSlides) && res.settings.bannerSlides.length > 0)
+                ? res.settings.bannerSlides
+                : prev.bannerSlides
+            };
+            try { localStorage.setItem('aiyra_settings', JSON.stringify(merged)); } catch (e) {}
+            return merged;
+          });
         }
 
         const now = new Date();
@@ -950,6 +981,15 @@ export function StoreProvider({ children }) {
       localStorage.setItem('aiyra_settings', JSON.stringify(merged));
     } catch (e) {
       console.error('Failed to save settings', e);
+    }
+
+    // Cloud Sync: Kirim ke Google Apps Script agar tersinkronisasi ke seluruh perangkat lain
+    const activeScriptUrl = merged.googleScriptUrl || settings.googleScriptUrl || INITIAL_SETTINGS.googleScriptUrl;
+    if (activeScriptUrl) {
+      sendToGoogleAppsScript(activeScriptUrl, {
+        action: 'saveSettings',
+        settings: newSettings
+      });
     }
   };
 
