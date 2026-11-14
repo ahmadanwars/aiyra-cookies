@@ -1073,18 +1073,27 @@ export function StoreProvider({ children }) {
     // Cloud Sync: Kirim ke Google Apps Script agar tersinkronisasi ke seluruh perangkat lain
     const activeScriptUrl = merged.googleScriptUrl || settings.googleScriptUrl || INITIAL_SETTINGS.googleScriptUrl;
     if (activeScriptUrl) {
+      // Sanitize config payload to prevent exceeding Google Sheets cell limit (50k chars)
+      const sanitizedLogoUrl = (merged.logoUrl && merged.logoUrl.startsWith('data:')) ? '' : (merged.logoUrl || '');
+      const sanitizedBannerSlides = Array.isArray(merged.bannerSlides)
+        ? merged.bannerSlides.map((s) => ({
+            ...s,
+            image: (s.image && s.image.startsWith('data:')) ? '' : (s.image || '')
+          }))
+        : [];
+
       const configPayload = {
-        adminPin: merged.adminPin,
-        _pinUpdatedAt: merged._pinUpdatedAt,
-        bannerSlides: merged.bannerSlides,
-        bannerTitle: merged.bannerTitle,
-        bannerDesc: merged.bannerDesc,
-        bannerBadge: merged.bannerBadge,
-        bannerButtonText: merged.bannerButtonText,
-        logoUrl: merged.logoUrl,
-        storeName: merged.storeName,
-        storeTagline: merged.storeTagline,
-        adminWhatsApp: merged.adminWhatsApp
+        adminPin: String(merged.adminPin || '123456'),
+        _pinUpdatedAt: merged._pinUpdatedAt || Date.now(),
+        bannerSlides: sanitizedBannerSlides,
+        bannerTitle: merged.bannerTitle || '',
+        bannerDesc: merged.bannerDesc || '',
+        bannerBadge: merged.bannerBadge || '',
+        bannerButtonText: merged.bannerButtonText || '',
+        logoUrl: sanitizedLogoUrl,
+        storeName: merged.storeName || '',
+        storeTagline: merged.storeTagline || '',
+        adminWhatsApp: merged.adminWhatsApp || ''
       };
 
       try {

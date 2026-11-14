@@ -45,7 +45,9 @@ export default function SettingsTab({ onOpenBannerModal, setToast }) {
   });
 
   const [showSettingsPin, setShowSettingsPin] = useState(false);
-  const [showActivePin, setShowActivePin] = useState(false);
+  const [showActivePin, setShowActivePin] = useState(true);
+  const [newPinInput, setNewPinInput] = useState('');
+  const [showNewPin, setShowNewPin] = useState(false);
   const [settingsSaved, setSettingsSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingPinOnly, setIsSavingPinOnly] = useState(false);
@@ -133,7 +135,7 @@ export default function SettingsTab({ onOpenBannerModal, setToast }) {
     }
   };
 
-  // Save Settings (All fields including PIN)
+  // Save Settings (All fields)
   const handleSaveSettings = async (e) => {
     e.preventDefault();
     let cleanedWa = String(storeForm.adminWhatsApp || '').replace(/[^0-9]/g, '');
@@ -145,7 +147,7 @@ export default function SettingsTab({ onOpenBannerModal, setToast }) {
       return;
     }
 
-    const newPin = storeForm.adminPin.trim() || settings?.adminPin || '123456';
+    const pinToSave = newPinInput.trim() || settings?.adminPin || '123456';
     setIsSaving(true);
     setPinChangeMsg('');
 
@@ -159,16 +161,17 @@ export default function SettingsTab({ onOpenBannerModal, setToast }) {
         bannerTitle: (storeForm.bannerTitle || '').trim(),
         bannerDesc: (storeForm.bannerDesc || '').trim(),
         bannerButtonText: (storeForm.bannerButtonText || '').trim(),
-        adminPin: newPin,
+        adminPin: pinToSave,
         spreadsheetId: storeForm.spreadsheetId.trim() || '1qNF4XHN3vjB91rjluYgVLJRJMC971dgVsXsGIppB9wg',
         googleScriptUrl: storeForm.googleScriptUrl.trim()
       });
 
+      setNewPinInput('');
       setIsFormDirty(false);
       setSettingsSaved(true);
-      setPinChangeMsg(`✅ PIN Admin tersimpan: ${newPin}`);
+      setPinChangeMsg(`✅ PIN Admin aktif saat ini: ${pinToSave}`);
       if (setToast) {
-        setToast(`✅ Pengaturan Toko & PIN Admin (${newPin}) berhasil disimpan ke Cloud!`);
+        setToast(`✅ Pengaturan Toko & PIN Admin (${pinToSave}) berhasil disimpan ke Cloud!`);
       }
       setTimeout(() => setSettingsSaved(false), 4000);
     } catch (err) {
@@ -180,13 +183,13 @@ export default function SettingsTab({ onOpenBannerModal, setToast }) {
 
   // Dedicated Save PIN Only (Langsung simpan & sinkronkan PIN baru ke Google Sheets)
   const handleSavePinOnly = async () => {
-    const targetPin = String(storeForm.adminPin || '').trim();
+    const targetPin = String(newPinInput || '').trim();
     if (!targetPin) {
-      alert('Mohon masukkan PIN baru terlebih dahulu.');
+      alert('Mohon masukkan PIN baru terlebih dahulu pada kolom isian di bawah.');
       return;
     }
     if (targetPin.length < 4) {
-      alert('PIN minimal terdiri dari 4 digit atau karakter.');
+      alert('PIN minimal terdiri dari 4 digit angka atau karakter.');
       return;
     }
 
@@ -198,8 +201,9 @@ export default function SettingsTab({ onOpenBannerModal, setToast }) {
         adminPin: targetPin
       });
 
+      setNewPinInput('');
       setIsFormDirty(false);
-      setPinChangeMsg(`🎉 Berhasil! PIN Admin baru: "${targetPin}" tersimpan & aktif di cloud.`);
+      setPinChangeMsg(`🎉 Berhasil! PIN Admin aktif telah diubah menjadi: "${targetPin}" dan tersimpan di cloud.`);
       if (setToast) {
         setToast(`🎉 PIN Admin berhasil diubah menjadi: ${targetPin}!`);
       }
@@ -953,75 +957,74 @@ function jsonResponse(data) {
             </div>
 
             {/* Ganti PIN Admin */}
-            <div className="md:col-span-2 p-4 sm:p-5 bg-gradient-to-br from-amber-50/90 via-white to-amber-50/50 rounded-2xl border-2 border-amber-300 shadow-xs space-y-3">
+            <div className="md:col-span-2 p-5 bg-gradient-to-br from-amber-50 via-white to-amber-50/60 rounded-3xl border-2 border-amber-300 shadow-sm space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <label className="text-xs sm:text-sm font-bold text-cookie-950 flex items-center gap-2">
-                  <div className="p-1.5 rounded-lg bg-amber-200/70 text-cookie-900">
+                <label className="text-sm font-bold text-cookie-950 flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-amber-200 text-cookie-900 shadow-xs">
                     <Lock className="w-4 h-4" />
                   </div>
-                  <span>Ubah PIN Keamanan Admin & Sinkronisasi Cloud</span>
+                  <span>Ubah PIN Keamanan Admin & Sinkronisasi Multi-Device</span>
                 </label>
-                <span className="text-[11px] font-bold text-amber-900 bg-amber-200/80 px-2.5 py-0.5 rounded-full border border-amber-300 self-start sm:self-auto">
-                  PIN Rahasia Multi-Device
+                <span className="text-[11px] font-bold text-amber-900 bg-amber-200/90 px-3 py-1 rounded-full border border-amber-300 self-start sm:self-auto">
+                  PIN Rahasia Pengelola
                 </span>
               </div>
+              
               <p className="text-xs text-neutral-600 leading-relaxed">
-                PIN ini berlaku sama untuk seluruh perangkat admin. Mengubah dan menyimpan PIN di sini akan langsung mensinkronkan PIN ke Google Sheets sehingga perangkat lain harus memasukkan PIN baru ini.
+                PIN ini digunakan untuk login admin di semua perangkat. Ketika PIN diganti dan disimpan di sini, seluruh perangkat admin lain otomatis wajib memasukkan PIN baru ini.
               </p>
 
               {/* Status PIN Aktif Saat Ini */}
-              <div className="flex flex-wrap items-center gap-2 p-3 bg-white rounded-xl border border-amber-200 text-xs">
-                <span className="text-neutral-500 font-medium">PIN Aktif Saat Ini:</span>
-                <div className="flex items-center gap-1.5 font-mono font-bold text-cookie-950 bg-amber-100/80 px-3 py-1 rounded-lg border border-amber-300">
-                  <KeyRound className="w-3.5 h-3.5 text-amber-700" />
-                  <span>{showActivePin ? (settings?.adminPin || '123456') : '••••••'}</span>
+              <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-amber-100/70 rounded-2xl border border-amber-300">
+                <div className="flex items-center gap-2.5 text-xs">
+                  <span className="text-neutral-700 font-semibold">PIN Aktif Saat Ini:</span>
+                  <span className="font-mono font-extrabold text-base text-cookie-950 bg-white px-3.5 py-1 rounded-xl border border-amber-300 shadow-xs tracking-wider">
+                    {showActivePin ? (settings?.adminPin || '123456') : '••••••'}
+                  </span>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowActivePin(!showActivePin)}
-                  className="text-cookie-800 hover:text-cookie-950 underline font-bold text-[11px] ml-1 flex items-center gap-1 cursor-pointer"
+                  className="text-cookie-800 hover:text-cookie-950 text-xs font-bold flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-white/80 transition cursor-pointer"
                 >
                   {showActivePin ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                  <span>{showActivePin ? 'Sembunyikan' : 'Lihat PIN Aktif'}</span>
+                  <span>{showActivePin ? 'Sembunyikan Angka' : 'Tampilkan Angka PIN'}</span>
                 </button>
               </div>
 
-              {/* Input Ubah PIN Baru & Tombol Simpan Langsung */}
+              {/* Form Input PIN Baru */}
               <div className="pt-1 space-y-2">
                 <label className="block text-xs font-bold text-cookie-950">
-                  Ketik PIN Baru di bawah ini jika ingin mengubah:
+                  Ketik PIN Baru di bawah ini untuk mengubah:
                 </label>
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 max-w-lg">
                   <div className="relative flex-1">
                     <KeyRound className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3" />
                     <input
-                      type={showSettingsPin ? "text" : "password"}
-                      value={storeForm.adminPin}
-                      onChange={(e) => {
-                        setIsFormDirty(true);
-                        setStoreForm({ ...storeForm, adminPin: e.target.value });
-                      }}
-                      placeholder="Ketik PIN Baru (contoh: 6 digit)"
+                      type={showNewPin ? "text" : "password"}
+                      value={newPinInput}
+                      onChange={(e) => setNewPinInput(e.target.value)}
+                      placeholder="Masukkan PIN baru (misal: 6 digit angka)"
                       className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-cookie-500 font-mono text-xs sm:text-sm bg-white shadow-xs"
                     />
                     <button
                       type="button"
-                      onClick={() => setShowSettingsPin(!showSettingsPin)}
+                      onClick={() => setShowNewPin(!showNewPin)}
                       className="absolute right-3.5 top-2.5 text-neutral-400 hover:text-cookie-800 transition p-0.5"
-                      title={showSettingsPin ? "Sembunyikan PIN" : "Tampilkan PIN"}
+                      title={showNewPin ? "Sembunyikan PIN" : "Tampilkan PIN"}
                     >
-                      {showSettingsPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showNewPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
 
                   <button
                     type="button"
                     onClick={handleSavePinOnly}
-                    disabled={isSavingPinOnly || storeForm.adminPin === settings?.adminPin}
-                    className={`font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 shrink-0 ${
-                      storeForm.adminPin === settings?.adminPin
+                    disabled={isSavingPinOnly || !newPinInput.trim() || newPinInput.trim() === settings?.adminPin}
+                    className={`font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition flex items-center justify-center gap-2 shrink-0 ${
+                      !newPinInput.trim() || newPinInput.trim() === settings?.adminPin
                         ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
-                        : 'bg-cookie-800 hover:bg-cookie-900 text-amber-200 hover:text-white cursor-pointer active:scale-95'
+                        : 'bg-cookie-800 hover:bg-cookie-900 text-amber-200 hover:text-white cursor-pointer active:scale-95 shadow-md'
                     }`}
                   >
                     {isSavingPinOnly ? (
@@ -1032,16 +1035,19 @@ function jsonResponse(data) {
                     ) : (
                       <>
                         <Save className="w-3.5 h-3.5" />
-                        <span>Simpan PIN Baru</span>
+                        <span>Simpan & Aktifkan PIN Baru</span>
                       </>
                     )}
                   </button>
                 </div>
+                <p className="text-[11px] text-neutral-500">
+                  * Setelah mengetik PIN baru di kolom atas, klik tombol <strong>"Simpan & Aktifkan PIN Baru"</strong>.
+                </p>
               </div>
 
               {/* Feedback Pesan Perubahan PIN */}
               {pinChangeMsg && (
-                <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-xs font-bold text-emerald-800 flex items-center gap-2 animate-fade-in">
+                <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-xs font-bold text-emerald-800 flex items-center gap-2 animate-fade-in shadow-xs">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span>{pinChangeMsg}</span>
                 </div>
