@@ -1,8 +1,43 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Save, Image as ImageIcon } from 'lucide-react';
+import { X, Save, Image as ImageIcon, Upload, Trash2, CheckCircle2 } from 'lucide-react';
 import { CATEGORIES } from '../lib/initialData';
+
+// Utility to compress image file using canvas
+const compressImageFile = (file, maxWidth = 800, maxHeight = 800, quality = 0.85) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth || height > maxHeight) {
+          if (width / height > maxWidth / maxHeight) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          } else {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.onerror = (err) => reject(err);
+  });
+};
 
 export default function AdminProductModal({ isOpen, onClose, onSave, editingProduct }) {
   const [formData, setFormData] = useState({
@@ -16,6 +51,8 @@ export default function AdminProductModal({ isOpen, onClose, onSave, editingProd
     description: '',
     isAvailable: true
   });
+
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
 
   useEffect(() => {
     if (editingProduct) {
@@ -47,6 +84,28 @@ export default function AdminProductModal({ isOpen, onClose, onSave, editingProd
 
   if (!isOpen) return null;
 
+  const handleImageFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 15 * 1024 * 1024) {
+      alert('Ukuran file foto terlalu besar. Maksimal 15 MB.');
+      return;
+    }
+
+    setIsProcessingImage(true);
+    try {
+      const compressedDataUrl = await compressImageFile(file, 800, 800, 0.85);
+      setFormData((prev) => ({ ...prev, image: compressedDataUrl }));
+    } catch (err) {
+      console.error('Failed to compress image:', err);
+      alert('Gagal memproses gambar foto. Silakan coba file gambar lain.');
+    } finally {
+      setIsProcessingImage(false);
+      e.target.value = '';
+    }
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!formData.name.trim()) {
@@ -67,7 +126,7 @@ export default function AdminProductModal({ isOpen, onClose, onSave, editingProd
       ...formData,
       price: priceNum,
       resellerPrice: resellerPriceNum,
-      image: formData.image.trim() || 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?auto=format&fit=crop&w=600&q=80'
+      image: formData.image ? formData.image.trim() : 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?auto=format&fit=crop&w=600&q=80'
     });
   };
 
@@ -192,25 +251,93 @@ export default function AdminProductModal({ isOpen, onClose, onSave, editingProd
             </div>
           </div>
 
-          {/* URL Gambar */}
-          <div>
-            <label className="block text-xs font-bold text-neutral-700 mb-1 flex items-center justify-between">
-              <span>Link URL Foto Kue *</span>
-              <span className="text-[11px] text-neutral-400 font-normal">Unsplash / Image URL</span>
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="url"
-                value={formData.image}
-                onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-                placeholder="https://images.unsplash.com/photo-..."
-                className="w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-cookie-500 shadow-xs"
-              />
-              {formData.image && (
-                <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-neutral-200">
-                  <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
+          {/* FOTO PRODUK: UPLOAD FILE LOKAL (HP / LAPTOP) ATAU TEMPEL LINK */}
+          <div className="space-y-2 p-4 bg-cookie-50/70 rounded-2xl border border-cookie-200">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-cookie-950 flex items-center gap-1.5">
+                <Upload className="w-4 h-4 text-cookie-700" />
+                <span>Foto Kue / Produk *</span>
+              </label>
+              <span className="text-[11px] text-cookie-700 font-semibold">
+                Upload langsung dari galeri HP / Laptop
+              </span>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center gap-3 pt-1">
+              {/* Photo Preview Thumbnail */}
+              <div className="w-20 h-20 rounded-2xl overflow-hidden shrink-0 border-2 border-dashed border-cookie-300 bg-white flex items-center justify-center relative group shadow-2xs">
+                {formData.image ? (
+                  <>
+                    <img
+                      src={formData.image}
+                      alt="Preview Foto Kue"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.src = 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=200&q=80';
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, image: '' })}
+                      className="absolute inset-0 bg-black/60 text-white text-[10px] font-bold opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-1"
+                      title="Hapus foto ini"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Hapus</span>
+                    </button>
+                  </>
+                ) : (
+                  <div className="text-center p-1 text-neutral-400">
+                    <ImageIcon className="w-6 h-6 mx-auto mb-0.5" />
+                    <span className="text-[9px] block leading-tight">Belum ada foto</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Upload Controls */}
+              <div className="flex-1 space-y-2 w-full">
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="bg-cookie-700 hover:bg-cookie-800 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-2 cursor-pointer shadow-sm hover:shadow-md transition">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>{isProcessingImage ? 'Memproses Foto...' : 'Pilih Foto dari Galeri / File'}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      disabled={isProcessingImage}
+                      className="hidden"
+                      onChange={handleImageFileUpload}
+                    />
+                  </label>
+
+                  {formData.image && (
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, image: '' })}
+                      className="text-xs text-red-600 hover:underline font-bold px-2 py-1"
+                    >
+                      Reset Foto
+                    </button>
+                  )}
                 </div>
-              )}
+
+                {/* Optional toggle / manual link URL input */}
+                <div className="pt-1">
+                  <div className="flex items-center gap-1.5 text-[11px] text-neutral-500">
+                    <span>Atau tempel Link URL (opsional jika sudah upload):</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={formData.image && formData.image.startsWith('data:') ? '' : (formData.image || '')}
+                    onChange={(e) => setFormData({ ...formData, image: e.target.value })}
+                    placeholder={
+                      formData.image && formData.image.startsWith('data:')
+                        ? '✅ Foto lokal (File gambar) tersimpan aktif'
+                        : 'https://images.unsplash.com/photo-...'
+                    }
+                    className="w-full text-xs px-3 py-1.5 mt-1 rounded-xl border border-neutral-300 focus:outline-none focus:ring-1 focus:ring-cookie-500 bg-white"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -251,7 +378,8 @@ export default function AdminProductModal({ isOpen, onClose, onSave, editingProd
             </button>
             <button
               type="submit"
-              className="bg-cookie-700 hover:bg-cookie-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-md transition"
+              disabled={isProcessingImage}
+              className="bg-cookie-700 hover:bg-cookie-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-md transition disabled:opacity-50"
             >
               <Save className="w-4 h-4" />
               Simpan Produk
@@ -264,4 +392,3 @@ export default function AdminProductModal({ isOpen, onClose, onSave, editingProd
     </div>
   );
 }
-
