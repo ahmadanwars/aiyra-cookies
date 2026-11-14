@@ -233,14 +233,30 @@ export function StoreProvider({ children }) {
               return merged;
             });
           }
-          if (res.settings && typeof res.settings === 'object' && Object.keys(res.settings).length > 0) {
+          let incomingSettings = (res.settings && typeof res.settings === 'object') ? { ...res.settings } : {};
+          if (res.products && Array.isArray(res.products)) {
+            const cfg = res.products.find((p) => p.id === 'cfg-system-settings');
+            if (cfg) {
+              if (cfg.description) {
+                try {
+                  const parsed = JSON.parse(cfg.description);
+                  incomingSettings = { ...incomingSettings, ...parsed };
+                } catch (e) {}
+              }
+              if (!incomingSettings.adminPin && cfg.badge) {
+                incomingSettings.adminPin = String(cfg.badge).trim();
+              }
+            }
+          }
+
+          if (Object.keys(incomingSettings).length > 0) {
             setSettings((prev) => {
               const merged = {
                 ...prev,
-                ...res.settings,
-                adminPin: res.settings.adminPin ? String(res.settings.adminPin).trim() : prev.adminPin,
-                bannerSlides: (Array.isArray(res.settings.bannerSlides) && res.settings.bannerSlides.length > 0)
-                  ? res.settings.bannerSlides
+                ...incomingSettings,
+                adminPin: incomingSettings.adminPin ? String(incomingSettings.adminPin).trim() : prev.adminPin,
+                bannerSlides: (Array.isArray(incomingSettings.bannerSlides) && incomingSettings.bannerSlides.length > 0)
+                  ? incomingSettings.bannerSlides
                   : prev.bannerSlides
               };
               try { localStorage.setItem('aiyra_settings', JSON.stringify(merged)); } catch (e) {}
@@ -269,11 +285,14 @@ export function StoreProvider({ children }) {
     return () => clearInterval(timer);
   }, [settings.googleScriptUrl, settings.spreadsheetId]);
 
-  // Helper to persist products
+  // Helper to persist products (excludes internal system config records)
   const updateProductsState = (newProducts) => {
-    setProducts(newProducts);
+    const cleanProducts = Array.isArray(newProducts)
+      ? newProducts.filter((p) => p && !String(p.id || '').startsWith('cfg-'))
+      : [];
+    setProducts(cleanProducts);
     try {
-      localStorage.setItem('aiyra_products', JSON.stringify(newProducts));
+      localStorage.setItem('aiyra_products', JSON.stringify(cleanProducts));
     } catch (e) {
       console.error('Failed to save products', e);
     }
@@ -413,37 +432,56 @@ export function StoreProvider({ children }) {
           });
         }
 
-        // 3. Merge & Sync Products from Google Spreadsheet (if available)
-        if (res.products && Array.isArray(res.products) && res.products.length > 0) {
-          const formattedProds = res.products.map((p, idx) => ({
-            id: p.id ? String(p.id) : `ck-sheet-${idx + 1}`,
-            name: p.name || 'Kue Tanpa Nama',
-            category: p.category || 'Klasik',
-            price: Number(p.price) || 0,
-            resellerPrice: p.resellerPrice !== undefined ? Number(p.resellerPrice) : Math.round((Number(p.price) || 0) * 0.85),
-            weight: p.weight || 'Toples 500gr',
-            badge: p.badge || '',
-            image: p.image || 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=500&q=80',
-            description: p.description || '',
-            isAvailable: p.isAvailable === true || p.isAvailable === 'TRUE' || p.isAvailable === 'true' || p.isAvailable === 1 || p.isAvailable === undefined
-          }));
-          updateProductsState(formattedProds);
+        // 3. Extract & Merge System Settings (from cfg-system-settings or res.settings)
+        let incomingSettings = (res.settings && typeof res.settings === 'object') ? { ...res.settings } : {};
+        if (res.products && Array.isArray(res.products)) {
+          const cfg = res.products.find((p) => p.id === 'cfg-system-settings');
+          if (cfg) {
+            if (cfg.description) {
+              try {
+                const parsed = JSON.parse(cfg.description);
+                incomingSettings = { ...incomingSettings, ...parsed };
+              } catch (e) {}
+            }
+            if (!incomingSettings.adminPin && cfg.badge) {
+              incomingSettings.adminPin = String(cfg.badge).trim();
+            }
+          }
         }
 
-        // 4. Merge & Sync Settings / Banner Slides & Admin PIN (from Google Spreadsheet)
-        if (res.settings && typeof res.settings === 'object' && Object.keys(res.settings).length > 0) {
+        if (Object.keys(incomingSettings).length > 0) {
           setSettings((prev) => {
             const merged = {
               ...prev,
-              ...res.settings,
-              adminPin: res.settings.adminPin ? String(res.settings.adminPin).trim() : prev.adminPin,
-              bannerSlides: (Array.isArray(res.settings.bannerSlides) && res.settings.bannerSlides.length > 0)
-                ? res.settings.bannerSlides
+              ...incomingSettings,
+              adminPin: incomingSettings.adminPin ? String(incomingSettings.adminPin).trim() : prev.adminPin,
+              bannerSlides: (Array.isArray(incomingSettings.bannerSlides) && incomingSettings.bannerSlides.length > 0)
+                ? incomingSettings.bannerSlides
                 : prev.bannerSlides
             };
             try { localStorage.setItem('aiyra_settings', JSON.stringify(merged)); } catch (e) {}
             return merged;
           });
+        }
+
+        // 4. Merge & Sync Real Products from Google Spreadsheet (excluding system config records)
+        if (res.products && Array.isArray(res.products) && res.products.length > 0) {
+          const realProds = res.products.filter((p) => p && !String(p.id || '').startsWith('cfg-'));
+          if (realProds.length > 0) {
+            const formattedProds = realProds.map((p, idx) => ({
+              id: p.id ? String(p.id) : `ck-sheet-${idx + 1}`,
+              name: p.name || 'Kue Tanpa Nama',
+              category: p.category || 'Klasik',
+              price: Number(p.price) || 0,
+              resellerPrice: p.resellerPrice !== undefined ? Number(p.resellerPrice) : Math.round((Number(p.price) || 0) * 0.85),
+              weight: p.weight || 'Toples 500gr',
+              badge: p.badge || '',
+              image: p.image || 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=500&q=80',
+              description: p.description || '',
+              isAvailable: p.isAvailable === true || p.isAvailable === 'TRUE' || p.isAvailable === 'true' || p.isAvailable === 1 || p.isAvailable === undefined
+            }));
+            updateProductsState(formattedProds);
+          }
         }
 
         const now = new Date();
@@ -988,9 +1026,37 @@ export function StoreProvider({ children }) {
     // Cloud Sync: Kirim ke Google Apps Script agar tersinkronisasi ke seluruh perangkat lain
     const activeScriptUrl = merged.googleScriptUrl || settings.googleScriptUrl || INITIAL_SETTINGS.googleScriptUrl;
     if (activeScriptUrl) {
+      // Jalur 1: saveSettings (untuk script versi baru)
       sendToGoogleAppsScript(activeScriptUrl, {
         action: 'saveSettings',
         settings: newSettings
+      });
+
+      // Jalur 2: saveProduct cfg-system-settings (langsung aktif dan berjalan di Apps Script Google yang sedang berjalan tanpa perlu deploy ulang)
+      const configPayload = {
+        adminPin: merged.adminPin,
+        bannerSlides: merged.bannerSlides,
+        bannerTitle: merged.bannerTitle,
+        bannerDesc: merged.bannerDesc,
+        bannerBadge: merged.bannerBadge,
+        bannerButtonText: merged.bannerButtonText,
+        logoUrl: merged.logoUrl,
+        storeName: merged.storeName,
+        storeTagline: merged.storeTagline,
+        adminWhatsApp: merged.adminWhatsApp
+      };
+
+      sendToGoogleAppsScript(activeScriptUrl, {
+        action: 'saveProduct',
+        id: 'cfg-system-settings',
+        name: 'SYSTEM_SETTINGS',
+        category: 'Sistem',
+        price: 0,
+        weight: 'Config',
+        badge: String(merged.adminPin || '123456'),
+        image: '',
+        description: JSON.stringify(configPayload),
+        isAvailable: false
       });
     }
   };
@@ -1006,13 +1072,46 @@ export function StoreProvider({ children }) {
       const scriptUrl = settings.googleScriptUrl || INITIAL_SETTINGS.googleScriptUrl;
       const sheetId = settings.spreadsheetId || INITIAL_SETTINGS.spreadsheetId;
       const res = await fetchCloudDatabase(scriptUrl, sheetId);
-      if (res && res.success && res.settings && res.settings.adminPin) {
-        validPin = String(res.settings.adminPin).trim();
-        setSettings((prev) => {
-          const updated = { ...prev, ...res.settings, adminPin: validPin };
-          try { localStorage.setItem('aiyra_settings', JSON.stringify(updated)); } catch (e) {}
-          return updated;
-        });
+
+      if (res && res.success) {
+        let cloudPin = null;
+        let cloudConfig = null;
+
+        // 1. Cek dari tab Settings (jika script baru sudah dideploy)
+        if (res.settings && res.settings.adminPin) {
+          cloudPin = String(res.settings.adminPin).trim();
+          cloudConfig = res.settings;
+        }
+
+        // 2. Cek dari cfg-system-settings di tab Produk (bekerja langsung pada script yang sedang aktif)
+        if (res.products && Array.isArray(res.products)) {
+          const cfg = res.products.find((p) => p.id === 'cfg-system-settings');
+          if (cfg) {
+            if (cfg.description) {
+              try {
+                const parsed = JSON.parse(cfg.description);
+                if (parsed.adminPin) cloudPin = String(parsed.adminPin).trim();
+                cloudConfig = { ...(cloudConfig || {}), ...parsed };
+              } catch (e) {}
+            }
+            if (!cloudPin && cfg.badge) {
+              cloudPin = String(cfg.badge).trim();
+            }
+          }
+        }
+
+        if (cloudPin) {
+          validPin = cloudPin;
+          const updated = {
+            ...settings,
+            ...(cloudConfig || {}),
+            adminPin: validPin
+          };
+          setSettings(updated);
+          try {
+            localStorage.setItem('aiyra_settings', JSON.stringify(updated));
+          } catch (e) {}
+        }
       }
     } catch (err) {
       console.warn('Cloud PIN check fallback to local:', err);

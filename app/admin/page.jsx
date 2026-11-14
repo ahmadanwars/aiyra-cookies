@@ -122,10 +122,11 @@ export default function AdminPage() {
     syncCloudData();
   }, []);
 
-  // Helper stats for overview
+  // Helper stats for overview (excludes internal system config records)
+  const realProducts = products.filter((p) => p && !String(p.id || '').startsWith('cfg-'));
   const waitingCount = orders.filter((o) => o.status === 'Waiting List' || o.status === 'Terkirim ke WhatsApp').length;
   const approvedCount = orders.filter((o) => o.status === 'Disetujui' || o.status === 'Sedang Diproses').length;
-  const availableCount = products.filter((p) => p.isAvailable !== false).length;
+  const availableCount = realProducts.filter((p) => p.isAvailable !== false).length;
   const customerCount = users.filter((u) => (u.status === 'approved' || !u.status) && u.role !== 'reseller').length;
   const resellerCount = users.filter((u) => (u.status === 'approved' || !u.status) && u.role === 'reseller').length;
 
@@ -317,7 +318,7 @@ export default function AdminPage() {
             <Package className="w-5 h-5" />
           </div>
           <p className="text-2xl sm:text-3xl font-extrabold text-cookie-950 font-serif">
-            {products.length}
+            {realProducts.length}
           </p>
           <span className="text-[11px] text-neutral-400">({availableCount} kue tersedia)</span>
         </div>

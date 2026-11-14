@@ -60,8 +60,10 @@ export default function HomePage() {
     return <AuthForm />;
   }
 
-  // 3. User is Logged In: Show Catalog
-  const filteredProducts = products.filter((product) => {
+  // 3. User is Logged In: Show Catalog (excludes internal system config records)
+  const filteredProducts = products
+    .filter((p) => p && !String(p.id || '').startsWith('cfg-'))
+    .filter((product) => {
     const matchesCategory =
       selectedCategory === 'Semua' || product.category === selectedCategory;
     const matchesSearch =

@@ -23,11 +23,13 @@ export default function ProductManagement({ onOpenAdd, onOpenEdit }) {
 
   const [adminSearch, setAdminSearch] = useState('');
 
-  // Filtered products for admin
-  const filteredProducts = products.filter((p) =>
-    p.name.toLowerCase().includes(adminSearch.toLowerCase()) ||
-    p.category.toLowerCase().includes(adminSearch.toLowerCase())
-  );
+  // Filtered products for admin (excludes internal system config records)
+  const filteredProducts = products
+    .filter((p) => p && !String(p.id || '').startsWith('cfg-'))
+    .filter((p) =>
+      p.name.toLowerCase().includes(adminSearch.toLowerCase()) ||
+      p.category.toLowerCase().includes(adminSearch.toLowerCase())
+    );
 
   const handleDeleteProduct = (product) => {
     if (confirm(`Apakah Anda yakin ingin menghapus kue "${product.name}" dari katalog?`)) {
