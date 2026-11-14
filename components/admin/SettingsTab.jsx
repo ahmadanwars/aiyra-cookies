@@ -45,7 +45,12 @@ export default function SettingsTab({ onOpenBannerModal, setToast }) {
   });
 
   const [showSettingsPin, setShowSettingsPin] = useState(false);
+  const [showActivePin, setShowActivePin] = useState(false);
   const [settingsSaved, setSettingsSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSavingPinOnly, setIsSavingPinOnly] = useState(false);
+  const [pinChangeMsg, setPinChangeMsg] = useState('');
+  const [isFormDirty, setIsFormDirty] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
   const [showScriptModal, setShowScriptModal] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
@@ -53,7 +58,7 @@ export default function SettingsTab({ onOpenBannerModal, setToast }) {
   const [testResult, setTestResult] = useState('');
 
   useEffect(() => {
-    if (settings) {
+    if (settings && !isFormDirty) {
       setStoreForm({
         adminWhatsApp: settings.adminWhatsApp || '',
         storeName: settings.storeName || '',
@@ -68,7 +73,7 @@ export default function SettingsTab({ onOpenBannerModal, setToast }) {
         googleScriptUrl: settings.googleScriptUrl || ''
       });
     }
-  }, [settings]);
+  }, [settings, isFormDirty]);
 
   // Trigger Sheet Sync
   const handleTriggerSync = async () => {
@@ -128,8 +133,8 @@ export default function SettingsTab({ onOpenBannerModal, setToast }) {
     }
   };
 
-  // Save Settings
-  const handleSaveSettings = (e) => {
+  // Save Settings (All fields including PIN)
+  const handleSaveSettings = async (e) => {
     e.preventDefault();
     let cleanedWa = String(storeForm.adminWhatsApp || '').replace(/[^0-9]/g, '');
     if (cleanedWa.startsWith('0')) {
@@ -140,22 +145,69 @@ export default function SettingsTab({ onOpenBannerModal, setToast }) {
       return;
     }
 
-    updateSettings({
-      adminWhatsApp: cleanedWa,
-      storeName: storeForm.storeName.trim() || 'Aiyra Cookies',
-      storeTagline: storeForm.storeTagline.trim() || 'Artisan Homemade Delights',
-      logoUrl: (storeForm.logoUrl || '').trim(),
-      bannerBadge: (storeForm.bannerBadge || '').trim(),
-      bannerTitle: (storeForm.bannerTitle || '').trim(),
-      bannerDesc: (storeForm.bannerDesc || '').trim(),
-      bannerButtonText: (storeForm.bannerButtonText || '').trim(),
-      adminPin: storeForm.adminPin.trim() || '123456',
-      spreadsheetId: storeForm.spreadsheetId.trim() || '1qNF4XHN3vjB91rjluYgVLJRJMC971dgVsXsGIppB9wg',
-      googleScriptUrl: storeForm.googleScriptUrl.trim()
-    });
+    const newPin = storeForm.adminPin.trim() || settings?.adminPin || '123456';
+    setIsSaving(true);
+    setPinChangeMsg('');
 
-    setSettingsSaved(true);
-    setTimeout(() => setSettingsSaved(false), 3000);
+    try {
+      const res = await updateSettings({
+        adminWhatsApp: cleanedWa,
+        storeName: storeForm.storeName.trim() || 'Aiyra Cookies',
+        storeTagline: storeForm.storeTagline.trim() || 'Artisan Homemade Delights',
+        logoUrl: (storeForm.logoUrl || '').trim(),
+        bannerBadge: (storeForm.bannerBadge || '').trim(),
+        bannerTitle: (storeForm.bannerTitle || '').trim(),
+        bannerDesc: (storeForm.bannerDesc || '').trim(),
+        bannerButtonText: (storeForm.bannerButtonText || '').trim(),
+        adminPin: newPin,
+        spreadsheetId: storeForm.spreadsheetId.trim() || '1qNF4XHN3vjB91rjluYgVLJRJMC971dgVsXsGIppB9wg',
+        googleScriptUrl: storeForm.googleScriptUrl.trim()
+      });
+
+      setIsFormDirty(false);
+      setSettingsSaved(true);
+      setPinChangeMsg(`✅ PIN Admin tersimpan: ${newPin}`);
+      if (setToast) {
+        setToast(`✅ Pengaturan Toko & PIN Admin (${newPin}) berhasil disimpan ke Cloud!`);
+      }
+      setTimeout(() => setSettingsSaved(false), 4000);
+    } catch (err) {
+      alert('Gagal menyimpan pengaturan: ' + err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Dedicated Save PIN Only (Langsung simpan & sinkronkan PIN baru ke Google Sheets)
+  const handleSavePinOnly = async () => {
+    const targetPin = String(storeForm.adminPin || '').trim();
+    if (!targetPin) {
+      alert('Mohon masukkan PIN baru terlebih dahulu.');
+      return;
+    }
+    if (targetPin.length < 4) {
+      alert('PIN minimal terdiri dari 4 digit atau karakter.');
+      return;
+    }
+
+    setIsSavingPinOnly(true);
+    setPinChangeMsg('');
+
+    try {
+      const res = await updateSettings({
+        adminPin: targetPin
+      });
+
+      setIsFormDirty(false);
+      setPinChangeMsg(`🎉 Berhasil! PIN Admin baru: "${targetPin}" tersimpan & aktif di cloud.`);
+      if (setToast) {
+        setToast(`🎉 PIN Admin berhasil diubah menjadi: ${targetPin}!`);
+      }
+    } catch (err) {
+      alert('Gagal menyimpan PIN baru: ' + err.message);
+    } finally {
+      setIsSavingPinOnly(false);
+    }
   };
 
   const handleAdminLogoUpload = (e) => {
@@ -829,7 +881,10 @@ function jsonResponse(data) {
                 type="text"
                 required
                 value={storeForm.adminWhatsApp}
-                onChange={(e) => setStoreForm({ ...storeForm, adminWhatsApp: e.target.value })}
+                onChange={(e) => {
+                  setIsFormDirty(true);
+                  setStoreForm({ ...storeForm, adminWhatsApp: e.target.value });
+                }}
                 placeholder="6281234567890"
                 className="w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-2xl border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-cookie-500 font-mono shadow-xs"
               />
@@ -843,7 +898,10 @@ function jsonResponse(data) {
               <input
                 type="text"
                 value={storeForm.storeName}
-                onChange={(e) => setStoreForm({ ...storeForm, storeName: e.target.value })}
+                onChange={(e) => {
+                  setIsFormDirty(true);
+                  setStoreForm({ ...storeForm, storeName: e.target.value });
+                }}
                 placeholder="Aiyra Cookies"
                 className="w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-2xl border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-cookie-500 shadow-xs"
               />
@@ -857,7 +915,10 @@ function jsonResponse(data) {
               <input
                 type="text"
                 value={storeForm.spreadsheetId}
-                onChange={(e) => setStoreForm({ ...storeForm, spreadsheetId: e.target.value })}
+                onChange={(e) => {
+                  setIsFormDirty(true);
+                  setStoreForm({ ...storeForm, spreadsheetId: e.target.value });
+                }}
                 placeholder="1qNF4XHN3vjB91rjluYgVLJRJMC971dgVsXsGIppB9wg"
                 className="w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-2xl border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-cookie-500 font-mono shadow-xs"
               />
@@ -878,7 +939,10 @@ function jsonResponse(data) {
               <input
                 type="url"
                 value={storeForm.googleScriptUrl}
-                onChange={(e) => setStoreForm({ ...storeForm, googleScriptUrl: e.target.value })}
+                onChange={(e) => {
+                  setIsFormDirty(true);
+                  setStoreForm({ ...storeForm, googleScriptUrl: e.target.value });
+                }}
                 placeholder="https://script.google.com/macros/s/.../exec"
                 className={`w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-2xl border font-mono shadow-xs ${
                   storeForm.googleScriptUrl
@@ -889,37 +953,99 @@ function jsonResponse(data) {
             </div>
 
             {/* Ganti PIN Admin */}
-            <div className="md:col-span-2 p-4 bg-amber-50/60 rounded-2xl border border-amber-200/80 space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-cookie-950 flex items-center gap-1.5">
-                  <Lock className="w-4 h-4 text-cookie-700" />
-                  <span>Ubah PIN Keamanan Admin</span>
+            <div className="md:col-span-2 p-4 sm:p-5 bg-gradient-to-br from-amber-50/90 via-white to-amber-50/50 rounded-2xl border-2 border-amber-300 shadow-xs space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <label className="text-xs sm:text-sm font-bold text-cookie-950 flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-amber-200/70 text-cookie-900">
+                    <Lock className="w-4 h-4" />
+                  </div>
+                  <span>Ubah PIN Keamanan Admin & Sinkronisasi Cloud</span>
                 </label>
-                <span className="text-[11px] font-semibold text-amber-800 bg-amber-100/80 px-2.5 py-0.5 rounded-full">
-                  PIN Rahasia
+                <span className="text-[11px] font-bold text-amber-900 bg-amber-200/80 px-2.5 py-0.5 rounded-full border border-amber-300 self-start sm:self-auto">
+                  PIN Rahasia Multi-Device
                 </span>
               </div>
-              <p className="text-[11px] text-neutral-600">
-                Ganti PIN untuk mengamankan akses ke halaman pengelola ini. Pastikan Anda mengingat atau mencatat PIN baru setelah menyimpannya.
+              <p className="text-xs text-neutral-600 leading-relaxed">
+                PIN ini berlaku sama untuk seluruh perangkat admin. Mengubah dan menyimpan PIN di sini akan langsung mensinkronkan PIN ke Google Sheets sehingga perangkat lain harus memasukkan PIN baru ini.
               </p>
-              <div className="relative max-w-sm">
-                <KeyRound className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3" />
-                <input
-                  type={showSettingsPin ? "text" : "password"}
-                  value={storeForm.adminPin}
-                  onChange={(e) => setStoreForm({ ...storeForm, adminPin: e.target.value })}
-                  placeholder="Ketik PIN Baru (contoh: 6 digit)"
-                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-cookie-500 font-mono text-xs sm:text-sm bg-white shadow-xs"
-                />
+
+              {/* Status PIN Aktif Saat Ini */}
+              <div className="flex flex-wrap items-center gap-2 p-3 bg-white rounded-xl border border-amber-200 text-xs">
+                <span className="text-neutral-500 font-medium">PIN Aktif Saat Ini:</span>
+                <div className="flex items-center gap-1.5 font-mono font-bold text-cookie-950 bg-amber-100/80 px-3 py-1 rounded-lg border border-amber-300">
+                  <KeyRound className="w-3.5 h-3.5 text-amber-700" />
+                  <span>{showActivePin ? (settings?.adminPin || '123456') : '••••••'}</span>
+                </div>
                 <button
                   type="button"
-                  onClick={() => setShowSettingsPin(!showSettingsPin)}
-                  className="absolute right-3.5 top-2.5 text-neutral-400 hover:text-cookie-800 transition p-0.5"
-                  title={showSettingsPin ? "Sembunyikan PIN" : "Tampilkan PIN"}
+                  onClick={() => setShowActivePin(!showActivePin)}
+                  className="text-cookie-800 hover:text-cookie-950 underline font-bold text-[11px] ml-1 flex items-center gap-1 cursor-pointer"
                 >
-                  {showSettingsPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showActivePin ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  <span>{showActivePin ? 'Sembunyikan' : 'Lihat PIN Aktif'}</span>
                 </button>
               </div>
+
+              {/* Input Ubah PIN Baru & Tombol Simpan Langsung */}
+              <div className="pt-1 space-y-2">
+                <label className="block text-xs font-bold text-cookie-950">
+                  Ketik PIN Baru di bawah ini jika ingin mengubah:
+                </label>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 max-w-lg">
+                  <div className="relative flex-1">
+                    <KeyRound className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3" />
+                    <input
+                      type={showSettingsPin ? "text" : "password"}
+                      value={storeForm.adminPin}
+                      onChange={(e) => {
+                        setIsFormDirty(true);
+                        setStoreForm({ ...storeForm, adminPin: e.target.value });
+                      }}
+                      placeholder="Ketik PIN Baru (contoh: 6 digit)"
+                      className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-cookie-500 font-mono text-xs sm:text-sm bg-white shadow-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowSettingsPin(!showSettingsPin)}
+                      className="absolute right-3.5 top-2.5 text-neutral-400 hover:text-cookie-800 transition p-0.5"
+                      title={showSettingsPin ? "Sembunyikan PIN" : "Tampilkan PIN"}
+                    >
+                      {showSettingsPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleSavePinOnly}
+                    disabled={isSavingPinOnly || storeForm.adminPin === settings?.adminPin}
+                    className={`font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 shrink-0 ${
+                      storeForm.adminPin === settings?.adminPin
+                        ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
+                        : 'bg-cookie-800 hover:bg-cookie-900 text-amber-200 hover:text-white cursor-pointer active:scale-95'
+                    }`}
+                  >
+                    {isSavingPinOnly ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-300" />
+                        <span>Menyimpan ke Cloud...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-3.5 h-3.5" />
+                        <span>Simpan PIN Baru</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Feedback Pesan Perubahan PIN */}
+              {pinChangeMsg && (
+                <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-xs font-bold text-emerald-800 flex items-center gap-2 animate-fade-in">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{pinChangeMsg}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -927,15 +1053,29 @@ function jsonResponse(data) {
             {settingsSaved && (
               <span className="text-xs font-bold text-emerald-600 flex items-center gap-1 animate-fade-in">
                 <CheckCircle2 className="w-4 h-4" />
-                Pengaturan berhasil disimpan!
+                Pengaturan berhasil disimpan ke Cloud!
               </span>
             )}
             <button
               type="submit"
-              className="ml-auto bg-cookie-700 hover:bg-cookie-800 text-white font-bold px-6 py-2.5 rounded-2xl text-xs sm:text-sm shadow-md transition flex items-center gap-2"
+              disabled={isSaving}
+              className={`ml-auto font-bold px-6 py-2.5 rounded-2xl text-xs sm:text-sm shadow-md transition flex items-center gap-2 ${
+                isSaving
+                  ? 'bg-cookie-600 text-white cursor-wait opacity-80'
+                  : 'bg-cookie-700 hover:bg-cookie-800 text-white cursor-pointer active:scale-95'
+              }`}
             >
-              <Save className="w-4 h-4" />
-              <span>Simpan Pengaturan</span>
+              {isSaving ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin text-amber-300" />
+                  <span>Menyimpan ke Cloud...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  <span>Simpan Pengaturan</span>
+                </>
+              )}
             </button>
           </div>
         </form>

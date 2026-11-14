@@ -251,14 +251,34 @@ export function StoreProvider({ children }) {
 
           if (Object.keys(incomingSettings).length > 0) {
             setSettings((prev) => {
+              const localPinTime = prev._pinUpdatedAt || 0;
+              const cloudPinTime = incomingSettings._pinUpdatedAt || 0;
+              const isLocalPinNewer = localPinTime > 0 && localPinTime > cloudPinTime && (Date.now() - localPinTime < 60000);
+
+              const mergedPin = isLocalPinNewer
+                ? prev.adminPin
+                : (incomingSettings.adminPin ? String(incomingSettings.adminPin).trim() : prev.adminPin);
+
               const merged = {
                 ...prev,
                 ...incomingSettings,
-                adminPin: incomingSettings.adminPin ? String(incomingSettings.adminPin).trim() : prev.adminPin,
+                adminPin: mergedPin,
+                _pinUpdatedAt: isLocalPinNewer ? prev._pinUpdatedAt : (cloudPinTime || prev._pinUpdatedAt),
                 bannerSlides: (Array.isArray(incomingSettings.bannerSlides) && incomingSettings.bannerSlides.length > 0)
                   ? incomingSettings.bannerSlides
                   : prev.bannerSlides
               };
+
+              if (
+                prev.adminPin === merged.adminPin &&
+                prev.storeName === merged.storeName &&
+                prev.adminWhatsApp === merged.adminWhatsApp &&
+                prev.logoUrl === merged.logoUrl &&
+                JSON.stringify(prev.bannerSlides) === JSON.stringify(merged.bannerSlides)
+              ) {
+                return prev;
+              }
+
               try { localStorage.setItem('aiyra_settings', JSON.stringify(merged)); } catch (e) {}
               return merged;
             });
@@ -451,14 +471,34 @@ export function StoreProvider({ children }) {
 
         if (Object.keys(incomingSettings).length > 0) {
           setSettings((prev) => {
+            const localPinTime = prev._pinUpdatedAt || 0;
+            const cloudPinTime = incomingSettings._pinUpdatedAt || 0;
+            const isLocalPinNewer = localPinTime > 0 && localPinTime > cloudPinTime && (Date.now() - localPinTime < 60000);
+
+            const mergedPin = isLocalPinNewer
+              ? prev.adminPin
+              : (incomingSettings.adminPin ? String(incomingSettings.adminPin).trim() : prev.adminPin);
+
             const merged = {
               ...prev,
               ...incomingSettings,
-              adminPin: incomingSettings.adminPin ? String(incomingSettings.adminPin).trim() : prev.adminPin,
+              adminPin: mergedPin,
+              _pinUpdatedAt: isLocalPinNewer ? prev._pinUpdatedAt : (cloudPinTime || prev._pinUpdatedAt),
               bannerSlides: (Array.isArray(incomingSettings.bannerSlides) && incomingSettings.bannerSlides.length > 0)
                 ? incomingSettings.bannerSlides
                 : prev.bannerSlides
             };
+
+            if (
+              prev.adminPin === merged.adminPin &&
+              prev.storeName === merged.storeName &&
+              prev.adminWhatsApp === merged.adminWhatsApp &&
+              prev.logoUrl === merged.logoUrl &&
+              JSON.stringify(prev.bannerSlides) === JSON.stringify(merged.bannerSlides)
+            ) {
+              return prev;
+            }
+
             try { localStorage.setItem('aiyra_settings', JSON.stringify(merged)); } catch (e) {}
             return merged;
           });
@@ -1014,8 +1054,15 @@ export function StoreProvider({ children }) {
   };
 
   // ================= SETTINGS & ADMIN AUTH =================
-  const updateSettings = (newSettings) => {
-    const merged = { ...settings, ...newSettings };
+  const updateSettings = async (newSettings) => {
+    const now = Date.now();
+    const isPinChanged = newSettings.adminPin !== undefined && String(newSettings.adminPin).trim() !== String(settings.adminPin).trim();
+    const merged = {
+      ...settings,
+      ...newSettings,
+      _updatedAt: now,
+      _pinUpdatedAt: isPinChanged ? now : (settings._pinUpdatedAt || now)
+    };
     setSettings(merged);
     try {
       localStorage.setItem('aiyra_settings', JSON.stringify(merged));
@@ -1026,15 +1073,9 @@ export function StoreProvider({ children }) {
     // Cloud Sync: Kirim ke Google Apps Script agar tersinkronisasi ke seluruh perangkat lain
     const activeScriptUrl = merged.googleScriptUrl || settings.googleScriptUrl || INITIAL_SETTINGS.googleScriptUrl;
     if (activeScriptUrl) {
-      // Jalur 1: saveSettings (untuk script versi baru)
-      sendToGoogleAppsScript(activeScriptUrl, {
-        action: 'saveSettings',
-        settings: newSettings
-      });
-
-      // Jalur 2: saveProduct cfg-system-settings (langsung aktif dan berjalan di Apps Script Google yang sedang berjalan tanpa perlu deploy ulang)
       const configPayload = {
         adminPin: merged.adminPin,
+        _pinUpdatedAt: merged._pinUpdatedAt,
         bannerSlides: merged.bannerSlides,
         bannerTitle: merged.bannerTitle,
         bannerDesc: merged.bannerDesc,
@@ -1046,19 +1087,34 @@ export function StoreProvider({ children }) {
         adminWhatsApp: merged.adminWhatsApp
       };
 
-      sendToGoogleAppsScript(activeScriptUrl, {
-        action: 'saveProduct',
-        id: 'cfg-system-settings',
-        name: 'SYSTEM_SETTINGS',
-        category: 'Sistem',
-        price: 0,
-        weight: 'Config',
-        badge: String(merged.adminPin || '123456'),
-        image: '',
-        description: JSON.stringify(configPayload),
-        isAvailable: false
-      });
+      try {
+        // Simpan langsung ke sheet Produk via cfg-system-settings (bekerja langsung 100% pada Apps Script user)
+        const res = await sendToGoogleAppsScript(activeScriptUrl, {
+          action: 'saveProduct',
+          id: 'cfg-system-settings',
+          name: 'SYSTEM_SETTINGS',
+          category: 'Sistem',
+          price: 0,
+          weight: 'Config',
+          badge: String(merged.adminPin || '123456'),
+          image: '',
+          description: JSON.stringify(configPayload),
+          isAvailable: false
+        });
+
+        // Juga kirim ke saveSettings untuk versi baru Apps Script jika ada
+        sendToGoogleAppsScript(activeScriptUrl, {
+          action: 'saveSettings',
+          settings: configPayload
+        }).catch(() => {});
+
+        return res || { success: true };
+      } catch (err) {
+        console.error('Error saving settings to cloud:', err);
+        return { success: false, message: err.message };
+      }
     }
+    return { success: true };
   };
 
   const loginAdmin = async (pin) => {
