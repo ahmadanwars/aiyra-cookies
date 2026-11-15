@@ -20,8 +20,8 @@ import {
 } from 'lucide-react';
 import { INITIAL_SETTINGS } from '../lib/initialData';
 
-// Utility to compress an image file to Base64 data URL using canvas
-const compressImageFile = (file, maxWidth, maxHeight, quality = 0.85) => {
+// Utility to compress an image file to Base64 data URL using canvas with strict size limit (< 34KB)
+const compressImageFile = (file, maxWidth = 720, maxHeight = 405, quality = 0.65) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -47,7 +47,24 @@ const compressImageFile = (file, maxWidth, maxHeight, quality = 0.85) => {
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', quality));
+        
+        let q = quality;
+        let dataUrl = canvas.toDataURL('image/jpeg', q);
+
+        // Jika string Base64 masih > 34.000 karakter, perkecil resolusi bertahap agar muat di Google Sheets
+        let attempts = 0;
+        while (dataUrl.length > 34000 && attempts < 4) {
+          width = Math.round(width * 0.82);
+          height = Math.round(height * 0.82);
+          canvas.width = width;
+          canvas.height = height;
+          ctx.drawImage(img, 0, 0, width, height);
+          q = Math.max(0.5, q - 0.05);
+          dataUrl = canvas.toDataURL('image/jpeg', q);
+          attempts++;
+        }
+
+        resolve(dataUrl);
       };
       img.onerror = (err) => reject(err);
     };
@@ -141,8 +158,8 @@ export default function BannerSlideModal({ isOpen, onClose }) {
     if (!file) return;
 
     try {
-      // Compress with high quality & preservation of original aspect ratio (max 1920x1080)
-      const compressed = await compressImageFile(file, 1920, 1080, 0.88);
+      // Compress with strict limit < 34KB so it fits Google Sheets cell limits & syncs across devices
+      const compressed = await compressImageFile(file, 720, 405, 0.65);
       handleUpdateSlideField(index, 'image', compressed);
     } catch (err) {
       console.error('Failed to process image', err);
@@ -156,8 +173,8 @@ export default function BannerSlideModal({ isOpen, onClose }) {
     if (!file) return;
 
     try {
-      // Compress logo to max 320x320
-      const compressed = await compressImageFile(file, 320, 320, 0.9);
+      // Compress logo to max 280x280
+      const compressed = await compressImageFile(file, 280, 280, 0.7);
       setLogoUrl(compressed);
     } catch (err) {
       console.error('Failed to process logo', err);
@@ -173,7 +190,7 @@ export default function BannerSlideModal({ isOpen, onClose }) {
     setBannerButtonText(INITIAL_SETTINGS.bannerButtonText || 'Lihat Menu Katalog');
   };
 
-  const handleSaveAll = () => {
+  const handleSaveAll = async () => {
     if (slides.length === 0) {
       setErrorMsg('Minimal harus ada 1 slide banner aktif!');
       return;
@@ -184,21 +201,31 @@ export default function BannerSlideModal({ isOpen, onClose }) {
     }
 
     setIsSaving(true);
-    updateSettings({
-      bannerBadge: bannerBadge.trim() || INITIAL_SETTINGS.bannerBadge,
-      bannerTitle: bannerTitle.trim() || INITIAL_SETTINGS.bannerTitle,
-      bannerDesc: bannerDesc.trim() || INITIAL_SETTINGS.bannerDesc,
-      bannerButtonText: bannerButtonText.trim() || 'Lihat Menu Katalog',
-      bannerSlides: slides,
-      logoUrl: logoUrl.trim()
-    });
+    setErrorMsg('');
+    try {
+      await updateSettings({
+        bannerBadge: bannerBadge.trim() || INITIAL_SETTINGS.bannerBadge,
+        bannerTitle: bannerTitle.trim() || INITIAL_SETTINGS.bannerTitle,
+        bannerDesc: bannerDesc.trim() || INITIAL_SETTINGS.bannerDesc,
+        bannerButtonText: bannerButtonText.trim() || 'Lihat Menu Katalog',
+        bannerFit: bannerFit || 'full',
+        bannerOverlay: bannerOverlay || 'subtle',
+        showBannerText: showBannerText !== undefined ? showBannerText : true,
+        bannerSlides: slides,
+        logoUrl: logoUrl.trim()
+      });
 
-    setSuccessMsg('Pengaturan Banner, Teks & Logo berhasil disimpan!');
-    setTimeout(() => {
+      setSuccessMsg('Pengaturan Banner & Foto Slide berhasil disimpan dan disinkronkan ke semua perangkat!');
+      setTimeout(() => {
+        setIsSaving(false);
+        setSuccessMsg('');
+        onClose();
+      }, 1000);
+    } catch (err) {
+      console.error(err);
+      setErrorMsg('Gagal menyimpan banner: ' + err.message);
       setIsSaving(false);
-      setSuccessMsg('');
-      onClose();
-    }, 1000);
+    }
   };
 
   return (

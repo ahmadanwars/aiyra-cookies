@@ -79,6 +79,15 @@ export default function HeroBannerSlider({ onOpenEditModal }) {
       <div className="absolute inset-0 z-0 overflow-hidden">
         {slides.map((slide, idx) => {
           const isActive = idx === currentIndex;
+          const fallbackImages = [
+            'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?auto=format&fit=crop&w=1200&q=80',
+            'https://images.unsplash.com/photo-1590080875515-8a3a8dc5735e?auto=format&fit=crop&w=1200&q=80',
+            'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=1200&q=80'
+          ];
+          const slideImg = (slide.image && String(slide.image).trim().length > 5)
+            ? slide.image
+            : fallbackImages[idx % fallbackImages.length];
+
           return (
             <div
               key={slide.id || idx}
@@ -90,14 +99,14 @@ export default function HeroBannerSlider({ onOpenEditModal }) {
                 <>
                   {/* Atmospheric blurred ambient backdrop */}
                   <img
-                    src={slide.image}
+                    src={slideImg}
                     alt=""
                     aria-hidden="true"
                     className="absolute inset-0 w-full h-full object-cover filter blur-2xl opacity-40 scale-110 pointer-events-none"
                   />
                   {/* Clean full image preserving original aspect ratio without cropping */}
                   <img
-                    src={slide.image}
+                    src={slideImg}
                     alt={slide.title || 'Foto Slide Banner Aiyra Cookies'}
                     className="relative z-10 w-full h-full object-contain object-center transition-all duration-700 ease-out"
                     loading={idx === 0 ? 'eager' : 'lazy'}
@@ -105,7 +114,7 @@ export default function HeroBannerSlider({ onOpenEditModal }) {
                 </>
               ) : (
                 <img
-                  src={slide.image}
+                  src={slideImg}
                   alt={slide.title || 'Foto Slide Banner Aiyra Cookies'}
                   className="w-full h-full object-cover object-center transition-transform duration-7000 ease-out"
                   loading={idx === 0 ? 'eager' : 'lazy'}

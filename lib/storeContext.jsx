@@ -51,6 +51,62 @@ export function sortOrdersEarliestFirst(orderList, rawOrders = []) {
   });
 }
 
+export function extractCloudSettingsAndSlides(res) {
+  if (!res) return {};
+  let incomingSettings = (res.settings && typeof res.settings === 'object') ? { ...res.settings } : {};
+  if (res.products && Array.isArray(res.products)) {
+    const cfg = res.products.find((p) => p.id === 'cfg-system-settings');
+    if (cfg) {
+      if (cfg.description) {
+        try {
+          const parsed = JSON.parse(cfg.description);
+          incomingSettings = { ...incomingSettings, ...parsed };
+        } catch (e) {}
+      }
+      if (!incomingSettings.adminPin && cfg.badge) {
+        incomingSettings.adminPin = String(cfg.badge).trim();
+      }
+    }
+
+    // Ambil baris slide banner dari tab Produk (id berawalan cfg-slide-)
+    const cloudSlideRows = res.products.filter(
+      (p) => p && String(p.id || '').startsWith('cfg-slide-')
+    );
+
+    if (cloudSlideRows.length > 0) {
+      cloudSlideRows.sort((a, b) => (Number(a.price) || 0) - (Number(b.price) || 0));
+      const assembledSlides = cloudSlideRows.map((sr) => {
+        const cleanId = String(sr.id).replace('cfg-slide-', '');
+        return {
+          id: cleanId,
+          title: sr.name || '',
+          subtitle: sr.description || '',
+          badge: sr.badge || sr.weight || '',
+          image: sr.image || ''
+        };
+      });
+
+      if (Array.isArray(incomingSettings.bannerSlides) && incomingSettings.bannerSlides.length > 0) {
+        incomingSettings.bannerSlides = incomingSettings.bannerSlides.map((s) => {
+          const matched = assembledSlides.find((ar) => ar.id === s.id);
+          return {
+            ...s,
+            image: (matched && matched.image && String(matched.image).trim().length > 5) ? matched.image : (s.image || '')
+          };
+        });
+        assembledSlides.forEach((ar) => {
+          if (!incomingSettings.bannerSlides.some((s) => s.id === ar.id)) {
+            incomingSettings.bannerSlides.push(ar);
+          }
+        });
+      } else {
+        incomingSettings.bannerSlides = assembledSlides;
+      }
+    }
+  }
+  return incomingSettings;
+}
+
 export function StoreProvider({ children }) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [products, setProducts] = useState(INITIAL_PRODUCTS);
@@ -287,21 +343,7 @@ export function StoreProvider({ children }) {
               return merged;
             });
           }
-          let incomingSettings = (res.settings && typeof res.settings === 'object') ? { ...res.settings } : {};
-          if (res.products && Array.isArray(res.products)) {
-            const cfg = res.products.find((p) => p.id === 'cfg-system-settings');
-            if (cfg) {
-              if (cfg.description) {
-                try {
-                  const parsed = JSON.parse(cfg.description);
-                  incomingSettings = { ...incomingSettings, ...parsed };
-                } catch (e) {}
-              }
-              if (!incomingSettings.adminPin && cfg.badge) {
-                incomingSettings.adminPin = String(cfg.badge).trim();
-              }
-            }
-          }
+          const incomingSettings = extractCloudSettingsAndSlides(res);
 
           if (Object.keys(incomingSettings).length > 0) {
             setSettings((prev) => {
@@ -323,13 +365,7 @@ export function StoreProvider({ children }) {
                   : prev.bannerSlides
               };
 
-              if (
-                prev.adminPin === merged.adminPin &&
-                prev.storeName === merged.storeName &&
-                prev.adminWhatsApp === merged.adminWhatsApp &&
-                prev.logoUrl === merged.logoUrl &&
-                JSON.stringify(prev.bannerSlides) === JSON.stringify(merged.bannerSlides)
-              ) {
+              if (JSON.stringify(prev) === JSON.stringify(merged)) {
                 return prev;
               }
 
@@ -539,22 +575,8 @@ export function StoreProvider({ children }) {
           });
         }
 
-        // 3. Extract & Merge System Settings (from cfg-system-settings or res.settings)
-        let incomingSettings = (res.settings && typeof res.settings === 'object') ? { ...res.settings } : {};
-        if (res.products && Array.isArray(res.products)) {
-          const cfg = res.products.find((p) => p.id === 'cfg-system-settings');
-          if (cfg) {
-            if (cfg.description) {
-              try {
-                const parsed = JSON.parse(cfg.description);
-                incomingSettings = { ...incomingSettings, ...parsed };
-              } catch (e) {}
-            }
-            if (!incomingSettings.adminPin && cfg.badge) {
-              incomingSettings.adminPin = String(cfg.badge).trim();
-            }
-          }
-        }
+        // 3. Extract & Merge System Settings & Banner Slides (from cfg-system-settings, cfg-slide-*, or res.settings)
+        const incomingSettings = extractCloudSettingsAndSlides(res);
 
         if (Object.keys(incomingSettings).length > 0) {
           setSettings((prev) => {
@@ -576,13 +598,7 @@ export function StoreProvider({ children }) {
                 : prev.bannerSlides
             };
 
-            if (
-              prev.adminPin === merged.adminPin &&
-              prev.storeName === merged.storeName &&
-              prev.adminWhatsApp === merged.adminWhatsApp &&
-              prev.logoUrl === merged.logoUrl &&
-              JSON.stringify(prev.bannerSlides) === JSON.stringify(merged.bannerSlides)
-            ) {
+            if (JSON.stringify(prev) === JSON.stringify(merged)) {
               return prev;
             }
 
@@ -1231,23 +1247,55 @@ export function StoreProvider({ children }) {
         : (INITIAL_SETTINGS.googleScriptUrl || officialFallbackUrl));
 
     if (activeScriptUrl) {
-      // Sanitize config payload to prevent exceeding Google Sheets cell limit (50k chars)
       const sanitizedLogoUrl = (merged.logoUrl && merged.logoUrl.startsWith('data:')) ? '' : (merged.logoUrl || '');
-      const sanitizedBannerSlides = Array.isArray(merged.bannerSlides)
-        ? merged.bannerSlides.map((s) => ({
-            ...s,
-            image: (s.image && s.image.startsWith('data:')) ? '' : (s.image || '')
-          }))
-        : [];
+
+      // 1. Simpan setiap slide banner sebagai baris khusus di tab Produk (cfg-slide-*)
+      // Memungkinkan foto Base64 lokal memiliki kolom image tersendiri tanpa batas sel bersama
+      if (Array.isArray(merged.bannerSlides)) {
+        for (let i = 0; i < merged.bannerSlides.length; i++) {
+          const s = merged.bannerSlides[i];
+          const slideId = s.id || ('slide-' + (i + 1));
+          sendToGoogleAppsScript(activeScriptUrl, {
+            action: 'saveProduct',
+            id: `cfg-slide-${slideId}`,
+            name: s.title || `Slide ${i + 1}`,
+            category: 'BannerSlide',
+            price: i, // urutan index slide
+            weight: s.badge || '',
+            badge: s.badge || '',
+            image: s.image || '', // Foto tersimpan utuh di kolom image!
+            description: s.subtitle || '',
+            isAvailable: false,
+            resellerPrice: 0
+          }).catch((err) => console.warn('Failed to sync banner slide row:', err));
+        }
+      }
+
+      // 2. Siapkan config payload untuk cfg-system-settings
+      // Cek apakah bannerSlides dengan gambarnya muat di description (< 40.000 karakter)
+      let slidesToStore = merged.bannerSlides || [];
+      const testJson = JSON.stringify({ ...merged, bannerSlides: slidesToStore });
+      if (testJson.length > 40000) {
+        slidesToStore = (merged.bannerSlides || []).map((s, idx) => ({
+          id: s.id || ('slide-' + (idx + 1)),
+          title: s.title || '',
+          subtitle: s.subtitle || '',
+          badge: s.badge || '',
+          image: (s.image && s.image.startsWith('http')) ? s.image : ''
+        }));
+      }
 
       const configPayload = {
         adminPin: String(merged.adminPin || '123456'),
         _pinUpdatedAt: merged._pinUpdatedAt || Date.now(),
-        bannerSlides: sanitizedBannerSlides,
+        bannerSlides: slidesToStore,
         bannerTitle: merged.bannerTitle || '',
         bannerDesc: merged.bannerDesc || '',
         bannerBadge: merged.bannerBadge || '',
         bannerButtonText: merged.bannerButtonText || '',
+        bannerFit: merged.bannerFit || 'full',
+        bannerOverlay: merged.bannerOverlay || 'subtle',
+        showBannerText: merged.showBannerText !== undefined ? merged.showBannerText : true,
         logoUrl: sanitizedLogoUrl,
         storeName: merged.storeName || '',
         storeTagline: merged.storeTagline || '',
@@ -1272,7 +1320,10 @@ export function StoreProvider({ children }) {
         // Juga kirim ke saveSettings untuk versi baru Apps Script jika ada
         sendToGoogleAppsScript(activeScriptUrl, {
           action: 'saveSettings',
-          settings: configPayload
+          settings: {
+            ...configPayload,
+            bannerSlides: merged.bannerSlides
+          }
         }).catch(() => {});
 
         return res || { success: true };
