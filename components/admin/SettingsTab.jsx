@@ -244,7 +244,7 @@ export default function SettingsTab({ onOpenBannerModal, setToast }) {
       img.src = event.target.result;
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const maxDim = 320;
+        let maxDim = 200;
         let width = img.width;
         let height = img.height;
         if (width > maxDim || height > maxDim) {
@@ -260,7 +260,20 @@ export default function SettingsTab({ onOpenBannerModal, setToast }) {
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+        let q = 0.72;
+        let dataUrl = canvas.toDataURL('image/jpeg', q);
+        let attempts = 0;
+        while (dataUrl.length > 18000 && attempts < 3) {
+          width = Math.round(width * 0.85);
+          height = Math.round(height * 0.85);
+          canvas.width = width;
+          canvas.height = height;
+          ctx.drawImage(img, 0, 0, width, height);
+          q = Math.max(0.55, q - 0.05);
+          dataUrl = canvas.toDataURL('image/jpeg', q);
+          attempts++;
+        }
+        setIsFormDirty(true);
         setStoreForm((prev) => ({ ...prev, logoUrl: dataUrl }));
       };
     };

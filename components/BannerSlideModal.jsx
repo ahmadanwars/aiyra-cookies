@@ -173,8 +173,8 @@ export default function BannerSlideModal({ isOpen, onClose }) {
     if (!file) return;
 
     try {
-      // Compress logo to max 280x280
-      const compressed = await compressImageFile(file, 280, 280, 0.7);
+      // Compress logo to max 200x200 (< 18KB Base64)
+      const compressed = await compressImageFile(file, 200, 200, 0.72);
       setLogoUrl(compressed);
     } catch (err) {
       console.error('Failed to process logo', err);

@@ -73,6 +73,12 @@ export function extractCloudSettingsAndSlides(res) {
       (p) => p && String(p.id || '').startsWith('cfg-slide-')
     );
 
+    // Ambil logo toko dari baris cfg-store-logo jika ada di tab Produk
+    const logoRow = res.products.find((p) => p && p.id === 'cfg-store-logo');
+    if (logoRow && logoRow.image && String(logoRow.image).trim().length > 10) {
+      incomingSettings.logoUrl = logoRow.image;
+    }
+
     if (cloudSlideRows.length > 0) {
       cloudSlideRows.sort((a, b) => (Number(a.price) || 0) - (Number(b.price) || 0));
       const assembledSlides = cloudSlideRows.map((sr) => {
@@ -1247,9 +1253,25 @@ export function StoreProvider({ children }) {
         : (INITIAL_SETTINGS.googleScriptUrl || officialFallbackUrl));
 
     if (activeScriptUrl) {
-      const sanitizedLogoUrl = (merged.logoUrl && merged.logoUrl.startsWith('data:')) ? '' : (merged.logoUrl || '');
+      // 1. Simpan Logo Toko ke baris khusus cfg-store-logo di tab Produk
+      // Memungkinkan foto logo Base64 memiliki kolom image tersendiri di Google Sheets
+      if (merged.logoUrl !== undefined) {
+        sendToGoogleAppsScript(activeScriptUrl, {
+          action: 'saveProduct',
+          id: 'cfg-store-logo',
+          name: 'STORE_LOGO',
+          category: 'Logo',
+          price: 0,
+          weight: 'Logo',
+          badge: 'Logo',
+          image: merged.logoUrl || '', // Foto logo tersimpan utuh di kolom image!
+          description: 'STORE_LOGO_IMAGE',
+          isAvailable: false,
+          resellerPrice: 0
+        }).catch((err) => console.warn('Failed to sync store logo row:', err));
+      }
 
-      // 1. Simpan setiap slide banner sebagai baris khusus di tab Produk (cfg-slide-*)
+      // 2. Simpan setiap slide banner sebagai baris khusus di tab Produk (cfg-slide-*)
       // Memungkinkan foto Base64 lokal memiliki kolom image tersendiri tanpa batas sel bersama
       if (Array.isArray(merged.bannerSlides)) {
         for (let i = 0; i < merged.bannerSlides.length; i++) {
@@ -1271,11 +1293,11 @@ export function StoreProvider({ children }) {
         }
       }
 
-      // 2. Siapkan config payload untuk cfg-system-settings
-      // Cek apakah bannerSlides dengan gambarnya muat di description (< 40.000 karakter)
+      // 3. Siapkan config payload untuk cfg-system-settings
+      // Cek apakah bannerSlides dengan gambarnya muat di description (< 35.000 karakter)
       let slidesToStore = merged.bannerSlides || [];
       const testJson = JSON.stringify({ ...merged, bannerSlides: slidesToStore });
-      if (testJson.length > 40000) {
+      if (testJson.length > 35000) {
         slidesToStore = (merged.bannerSlides || []).map((s, idx) => ({
           id: s.id || ('slide-' + (idx + 1)),
           title: s.title || '',
@@ -1284,6 +1306,9 @@ export function StoreProvider({ children }) {
           image: (s.image && s.image.startsWith('http')) ? s.image : ''
         }));
       }
+
+      // Jika logoUrl panjangnya < 30.000 karakter, simpan langsung di configPayload juga
+      const safeLogoUrl = (merged.logoUrl && merged.logoUrl.length < 30000) ? merged.logoUrl : '';
 
       const configPayload = {
         adminPin: String(merged.adminPin || '123456'),
@@ -1296,7 +1321,7 @@ export function StoreProvider({ children }) {
         bannerFit: merged.bannerFit || 'full',
         bannerOverlay: merged.bannerOverlay || 'subtle',
         showBannerText: merged.showBannerText !== undefined ? merged.showBannerText : true,
-        logoUrl: sanitizedLogoUrl,
+        logoUrl: safeLogoUrl,
         storeName: merged.storeName || '',
         storeTagline: merged.storeTagline || '',
         adminWhatsApp: merged.adminWhatsApp || ''
