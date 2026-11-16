@@ -67,14 +67,22 @@ export default function AdminProductModal({ isOpen, onClose, onSave, editingProd
   });
 
   const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [isManualReseller, setIsManualReseller] = useState(false);
 
   useEffect(() => {
     if (editingProduct) {
+      const p = Number(editingProduct.price) || 0;
+      const r = Number(editingProduct.resellerPrice);
+      // Reseller price is a valid custom price only if > 0 and strictly less than normal price
+      const isCustomValid = r > 0 && r < p;
+      const effectiveReseller = isCustomValid ? r : (p > 0 ? Math.round(p * 0.85) : '');
+      setIsManualReseller(isCustomValid);
+
       setFormData({
         name: editingProduct.name || '',
         category: editingProduct.category || 'Klasik',
         price: editingProduct.price || '',
-        resellerPrice: editingProduct.resellerPrice || '',
+        resellerPrice: effectiveReseller,
         weight: editingProduct.weight || 'Toples 500gr',
         badge: editingProduct.badge || '',
         image: editingProduct.image || '',
@@ -82,6 +90,7 @@ export default function AdminProductModal({ isOpen, onClose, onSave, editingProd
         isAvailable: editingProduct.isAvailable !== false
       });
     } else {
+      setIsManualReseller(false);
       setFormData({
         name: '',
         category: 'Klasik',
@@ -97,6 +106,35 @@ export default function AdminProductModal({ isOpen, onClose, onSave, editingProd
   }, [editingProduct, isOpen]);
 
   if (!isOpen) return null;
+
+  const handlePriceChange = (val) => {
+    const num = Number(val);
+    setFormData((prev) => {
+      // If reseller price is not manually customized or is invalid, update automatically with 15% discount
+      const nextReseller = (!isManualReseller || !prev.resellerPrice || Number(prev.resellerPrice) >= num)
+        ? (num > 0 ? Math.round(num * 0.85) : '')
+        : prev.resellerPrice;
+      return {
+        ...prev,
+        price: val,
+        resellerPrice: nextReseller
+      };
+    });
+  };
+
+  const handleResellerPriceChange = (val) => {
+    setIsManualReseller(true);
+    setFormData((prev) => ({ ...prev, resellerPrice: val }));
+  };
+
+  const handleResetResellerPrice = () => {
+    const p = Number(formData.price) || 0;
+    setIsManualReseller(false);
+    setFormData((prev) => ({
+      ...prev,
+      resellerPrice: p > 0 ? Math.round(p * 0.85) : ''
+    }));
+  };
 
   const handleImageFileUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -132,8 +170,10 @@ export default function AdminProductModal({ isOpen, onClose, onSave, editingProd
     }
 
     const priceNum = Number(formData.price);
-    const resellerPriceNum = formData.resellerPrice
-      ? Number(formData.resellerPrice)
+    const rawReseller = Number(formData.resellerPrice);
+    // Pastikan harga reseller selalu valid dan lebih murah dari harga normal (default diskon 15%)
+    const resellerPriceNum = (rawReseller > 0 && rawReseller < priceNum)
+      ? rawReseller
       : Math.round(priceNum * 0.85);
 
     onSave({
@@ -202,7 +242,7 @@ export default function AdminProductModal({ isOpen, onClose, onSave, editingProd
                 min="1000"
                 step="500"
                 value={formData.price}
-                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                onChange={(e) => handlePriceChange(e.target.value)}
                 placeholder="Contoh: 85000"
                 className="w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-xl border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-cookie-500 shadow-xs"
               />
@@ -210,18 +250,44 @@ export default function AdminProductModal({ isOpen, onClose, onSave, editingProd
 
             {/* Harga Reseller */}
             <div>
-              <label className="block text-xs font-bold text-emerald-800 mb-1">
-                Harga Reseller (Mitra)
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-bold text-emerald-800">
+                  Harga Reseller (Mitra)
+                </label>
+                {formData.price && Number(formData.price) > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleResetResellerPrice}
+                    className="text-[10px] text-emerald-700 hover:text-emerald-900 font-bold underline flex items-center gap-0.5"
+                    title="Hitung ulang otomatis diskon 15%"
+                  >
+                    🔄 Auto -15%
+                  </button>
+                )}
+              </div>
               <input
                 type="number"
                 min="1000"
                 step="500"
                 value={formData.resellerPrice}
-                onChange={(e) => setFormData({ ...formData, resellerPrice: e.target.value })}
-                placeholder="Otomatis -15% jika kosong"
-                className="w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-xl border border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-emerald-50/30 shadow-xs"
+                onChange={(e) => handleResellerPriceChange(e.target.value)}
+                placeholder={formData.price && Number(formData.price) > 0 ? `Auto: ${Math.round(Number(formData.price) * 0.85)}` : "Otomatis -15%"}
+                className="w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-xl border border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-emerald-50/40 shadow-xs font-semibold text-emerald-950"
               />
+              {formData.price && Number(formData.price) > 0 && (
+                <div className="mt-1 flex items-center justify-between text-[10px] text-emerald-700 font-medium">
+                  <span>
+                    {Number(formData.resellerPrice) > 0 && Number(formData.resellerPrice) < Number(formData.price)
+                      ? `Hemat Rp ${(Number(formData.price) - Number(formData.resellerPrice)).toLocaleString('id-ID')} (${Math.round((1 - Number(formData.resellerPrice) / Number(formData.price)) * 100)}%)`
+                      : `Diskon 15%: Rp ${Math.round(Number(formData.price) * 0.15).toLocaleString('id-ID')}`}
+                  </span>
+                  {isManualReseller ? (
+                    <span className="text-[9px] bg-amber-100 text-amber-800 px-1 py-0.2 rounded font-bold">Kustom</span>
+                  ) : (
+                    <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1 py-0.2 rounded font-bold">Auto 15%</span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

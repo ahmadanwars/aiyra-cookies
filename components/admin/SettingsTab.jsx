@@ -365,11 +365,15 @@ function handleRequest(params) {
         for (var p = 0; p < pRows.length; p++) {
           var pr = pRows[p];
           if (pr[0]) {
+            var pPrice = Number(pr[3]) || 0;
+            var pReseller = Number(pr[9]);
+            var effectiveReseller = (pReseller > 0 && pReseller < pPrice) ? pReseller : Math.round(pPrice * 0.85);
             products.push({
               id: String(pr[0]),
               name: String(pr[1] || 'Kue Tanpa Nama'),
               category: String(pr[2] || 'Klasik'),
-              price: Number(pr[3]) || 0,
+              price: pPrice,
+              resellerPrice: effectiveReseller,
               weight: String(pr[4] || 'Toples 500gr'),
               badge: String(pr[5] || ''),
               image: String(pr[6] || ''),
@@ -554,7 +558,7 @@ function handleRequest(params) {
     if (action === 'saveProduct') {
       var sheet = ss.getSheetByName('Produk') || ss.insertSheet('Produk');
       if (sheet.getLastRow() === 0) {
-        sheet.appendRow(['id', 'name', 'category', 'price', 'weight', 'badge', 'image', 'description', 'isAvailable']);
+        sheet.appendRow(['id', 'name', 'category', 'price', 'weight', 'badge', 'image', 'description', 'isAvailable', 'resellerPrice']);
       }
       var existingRow = -1;
       var lastRow = sheet.getLastRow();
@@ -568,16 +572,21 @@ function handleRequest(params) {
         }
       }
 
+      var priceVal = Number(params.price) || 0;
+      var rawReseller = Number(params.resellerPrice);
+      var effectiveReseller = (rawReseller > 0 && rawReseller < priceVal) ? rawReseller : Math.round(priceVal * 0.85);
+
       var rowData = [
         params.id || ('ck-' + Date.now().toString().slice(-6)),
         params.name || 'Kue Tanpa Nama',
         params.category || 'Klasik',
-        Number(params.price) || 0,
+        priceVal,
         params.weight || 'Toples 500gr',
         params.badge || '',
         params.image || 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=500&q=80',
         params.description || '',
-        params.isAvailable === false ? 'FALSE' : 'TRUE'
+        params.isAvailable === false ? 'FALSE' : 'TRUE',
+        effectiveReseller
       ];
 
       if (existingRow > 0) {

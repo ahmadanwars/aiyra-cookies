@@ -153,10 +153,17 @@ export default function ProductManagement({ onOpenAdd, onOpenEdit, setToast }) {
 
                     {/* Reseller Price */}
                     <td className="py-3 px-4 font-bold text-emerald-800">
-                      <div className="flex items-center gap-1">
-                        <span>{formatRupiah(p.resellerPrice || Math.round(p.price * 0.85))}</span>
-                        <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1 py-0.2 rounded font-bold">Mitra</span>
-                      </div>
+                      {(() => {
+                        const normalP = Number(p.price) || 0;
+                        const resP = Number(p.resellerPrice);
+                        const effectiveP = (resP > 0 && resP < normalP) ? resP : Math.round(normalP * 0.85);
+                        return (
+                          <div className="flex items-center gap-1">
+                            <span>{formatRupiah(effectiveP)}</span>
+                            <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1 py-0.2 rounded font-bold">Mitra</span>
+                          </div>
+                        );
+                      })()}
                     </td>
 
                     {/* Weight */}

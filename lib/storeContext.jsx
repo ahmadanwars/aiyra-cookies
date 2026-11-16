@@ -51,6 +51,23 @@ export function sortOrdersEarliestFirst(orderList, rawOrders = []) {
   });
 }
 
+export function sanitizeProductReseller(p) {
+  if (!p) return p;
+  const normalPrice = Number(p.price) || 0;
+  const rawReseller = (p.resellerPrice !== undefined && p.resellerPrice !== '')
+    ? Number(p.resellerPrice)
+    : (p.col_9 !== undefined && p.col_9 !== '' ? Number(p.col_9) : 0);
+  const effectiveReseller = (rawReseller > 0 && rawReseller < normalPrice)
+    ? rawReseller
+    : Math.round(normalPrice * 0.85);
+
+  return {
+    ...p,
+    price: normalPrice,
+    resellerPrice: effectiveReseller
+  };
+}
+
 export function extractCloudSettingsAndSlides(res) {
   if (!res) return {};
   let incomingSettings = (res.settings && typeof res.settings === 'object') ? { ...res.settings } : {};
@@ -176,13 +193,12 @@ export function StoreProvider({ children }) {
         const parsed = JSON.parse(savedProducts);
         const withReseller = parsed
           .filter((p) => p && !deletedIds.includes(p.id))
-          .map((p) => ({
-            ...p,
-            resellerPrice: p.resellerPrice !== undefined ? Number(p.resellerPrice) : Math.round((Number(p.price) || 0) * 0.85)
-          }));
+          .map((p) => sanitizeProductReseller(p));
         setProducts(withReseller);
       } else {
-        const initialFiltered = INITIAL_PRODUCTS.filter((p) => !deletedIds.includes(p.id));
+        const initialFiltered = INITIAL_PRODUCTS
+          .filter((p) => !deletedIds.includes(p.id))
+          .map((p) => sanitizeProductReseller(p));
         setProducts(initialFiltered);
         localStorage.setItem('aiyra_products', JSON.stringify(initialFiltered));
       }
@@ -287,12 +303,20 @@ export function StoreProvider({ children }) {
               cleanSheetProds.forEach((p, idx) => {
                 const prodId = p.id ? String(p.id) : `ck-sheet-${idx + 1}`;
                 if (deletedIds.includes(prodId)) return;
+                const normalPrice = Number(p.price) || 0;
+                const rawReseller = (p.resellerPrice !== undefined && p.resellerPrice !== '')
+                  ? Number(p.resellerPrice)
+                  : (p.col_9 !== undefined && p.col_9 !== '' ? Number(p.col_9) : 0);
+                const effectiveReseller = (rawReseller > 0 && rawReseller < normalPrice)
+                  ? rawReseller
+                  : Math.round(normalPrice * 0.85);
+
                 productMap.set(prodId, {
                   id: prodId,
                   name: p.name || 'Kue Tanpa Nama',
                   category: p.category || 'Klasik',
-                  price: Number(p.price) || 0,
-                  resellerPrice: p.resellerPrice !== undefined ? Number(p.resellerPrice) : Math.round((Number(p.price) || 0) * 0.85),
+                  price: normalPrice,
+                  resellerPrice: effectiveReseller,
                   weight: p.weight || 'Toples 500gr',
                   badge: p.badge || '',
                   image: p.image || 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=500&q=80',
@@ -388,18 +412,28 @@ export function StoreProvider({ children }) {
             );
             if (cloudRealProds.length > 0) {
               setProducts((prev) => {
-                const cloudFormatted = cloudRealProds.map((p, idx) => ({
-                  id: p.id ? String(p.id) : `ck-sheet-${idx + 1}`,
-                  name: p.name || 'Kue Tanpa Nama',
-                  category: p.category || 'Klasik',
-                  price: Number(p.price) || 0,
-                  resellerPrice: p.resellerPrice !== undefined ? Number(p.resellerPrice) : Math.round((Number(p.price) || 0) * 0.85),
-                  weight: p.weight || 'Toples 500gr',
-                  badge: p.badge || '',
-                  image: p.image || 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=500&q=80',
-                  description: p.description || '',
-                  isAvailable: p.isAvailable === true || p.isAvailable === 'TRUE' || p.isAvailable === 'true' || p.isAvailable === 1 || p.isAvailable === undefined
-                }));
+                const cloudFormatted = cloudRealProds.map((p, idx) => {
+                  const normalPrice = Number(p.price) || 0;
+                  const rawReseller = (p.resellerPrice !== undefined && p.resellerPrice !== '')
+                    ? Number(p.resellerPrice)
+                    : (p.col_9 !== undefined && p.col_9 !== '' ? Number(p.col_9) : 0);
+                  const effectiveReseller = (rawReseller > 0 && rawReseller < normalPrice)
+                    ? rawReseller
+                    : Math.round(normalPrice * 0.85);
+
+                  return {
+                    id: p.id ? String(p.id) : `ck-sheet-${idx + 1}`,
+                    name: p.name || 'Kue Tanpa Nama',
+                    category: p.category || 'Klasik',
+                    price: normalPrice,
+                    resellerPrice: effectiveReseller,
+                    weight: p.weight || 'Toples 500gr',
+                    badge: p.badge || '',
+                    image: p.image || 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=500&q=80',
+                    description: p.description || '',
+                    isAvailable: p.isAvailable === true || p.isAvailable === 'TRUE' || p.isAvailable === 'true' || p.isAvailable === 1 || p.isAvailable === undefined
+                  };
+                });
                 const recentLocal = prev.filter(
                   (lp) => lp._createdAt && (Date.now() - lp._createdAt < 45000) && !cloudFormatted.some((cp) => cp.id === lp.id)
                 );
@@ -474,18 +508,28 @@ export function StoreProvider({ children }) {
       
       if (sheetProducts && sheetProducts.length > 0) {
         const cleanProducts = sheetProducts.filter((p) => p && !String(p.id || '').startsWith('cfg-'));
-        const formatted = cleanProducts.map((p, idx) => ({
-          id: p.id ? String(p.id) : `ck-sheet-${idx + 1}`,
-          name: p.name || 'Kue Tanpa Nama',
-          category: p.category || 'Klasik',
-          price: Number(p.price) || 0,
-          resellerPrice: p.resellerPrice !== undefined ? Number(p.resellerPrice) : Math.round((Number(p.price) || 0) * 0.85),
-          weight: p.weight || 'Toples 500gr',
-          badge: p.badge || '',
-          image: p.image || 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=500&q=80',
-          description: p.description || '',
-          isAvailable: p.isAvailable === true || p.isAvailable === 'TRUE' || p.isAvailable === 'true' || p.isAvailable === 1 || p.isAvailable === undefined
-        }));
+        const formatted = cleanProducts.map((p, idx) => {
+          const normalPrice = Number(p.price) || 0;
+          const rawReseller = (p.resellerPrice !== undefined && p.resellerPrice !== '')
+            ? Number(p.resellerPrice)
+            : (p.col_9 !== undefined && p.col_9 !== '' ? Number(p.col_9) : 0);
+          const effectiveReseller = (rawReseller > 0 && rawReseller < normalPrice)
+            ? rawReseller
+            : Math.round(normalPrice * 0.85);
+
+          return {
+            id: p.id ? String(p.id) : `ck-sheet-${idx + 1}`,
+            name: p.name || 'Kue Tanpa Nama',
+            category: p.category || 'Klasik',
+            price: normalPrice,
+            resellerPrice: effectiveReseller,
+            weight: p.weight || 'Toples 500gr',
+            badge: p.badge || '',
+            image: p.image || 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=500&q=80',
+            description: p.description || '',
+            isAvailable: p.isAvailable === true || p.isAvailable === 'TRUE' || p.isAvailable === 'true' || p.isAvailable === 1 || p.isAvailable === undefined
+          };
+        });
         updateProductsState(formatted);
         return { success: true, count: formatted.length };
       } else {
@@ -624,12 +668,20 @@ export function StoreProvider({ children }) {
             setProducts((prev) => {
               const cloudFormatted = cloudRealProds.map((p, idx) => {
                 const prodId = p.id ? String(p.id) : `ck-sheet-${idx + 1}`;
+                const normalPrice = Number(p.price) || 0;
+                const rawReseller = (p.resellerPrice !== undefined && p.resellerPrice !== '')
+                  ? Number(p.resellerPrice)
+                  : (p.col_9 !== undefined && p.col_9 !== '' ? Number(p.col_9) : 0);
+                const effectiveReseller = (rawReseller > 0 && rawReseller < normalPrice)
+                  ? rawReseller
+                  : Math.round(normalPrice * 0.85);
+
                 return {
                   id: prodId,
                   name: p.name || 'Kue Tanpa Nama',
                   category: p.category || 'Klasik',
-                  price: Number(p.price) || 0,
-                  resellerPrice: p.resellerPrice !== undefined ? Number(p.resellerPrice) : Math.round((Number(p.price) || 0) * 0.85),
+                  price: normalPrice,
+                  resellerPrice: effectiveReseller,
                   weight: p.weight || 'Toples 500gr',
                   badge: p.badge || '',
                   image: p.image || 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=500&q=80',
@@ -895,8 +947,9 @@ export function StoreProvider({ children }) {
   // ================= ADMIN PRODUCT MANAGEMENT =================
   const addProduct = async (productData) => {
     const priceNum = Number(productData.price) || 0;
-    const resellerNum = productData.resellerPrice !== undefined && productData.resellerPrice !== ''
-      ? Number(productData.resellerPrice)
+    const rawReseller = Number(productData.resellerPrice);
+    const resellerNum = (rawReseller > 0 && rawReseller < priceNum)
+      ? rawReseller
       : Math.round(priceNum * 0.85);
 
     const newProduct = {
@@ -939,9 +992,12 @@ export function StoreProvider({ children }) {
     const updated = products.map((p) => {
       if (p.id === id) {
         const newPrice = Number(updatedFields.price !== undefined ? updatedFields.price : p.price) || 0;
-        const newResellerPrice = updatedFields.resellerPrice !== undefined && updatedFields.resellerPrice !== ''
+        const rawReseller = updatedFields.resellerPrice !== undefined && updatedFields.resellerPrice !== ''
           ? Number(updatedFields.resellerPrice)
-          : (p.resellerPrice !== undefined ? Number(p.resellerPrice) : Math.round(newPrice * 0.85));
+          : (p.resellerPrice !== undefined ? Number(p.resellerPrice) : 0);
+        const newResellerPrice = (rawReseller > 0 && rawReseller < newPrice)
+          ? rawReseller
+          : Math.round(newPrice * 0.85);
 
         savedProd = {
           ...p,
@@ -1436,10 +1492,17 @@ export function StoreProvider({ children }) {
   // Helper: Get product price based on user role (Customer vs Reseller)
   const getProductPrice = (product) => {
     if (!product) return 0;
+    const normalPrice = Number(product.price) || 0;
     if (currentUser?.role === 'reseller') {
-      return Number(product.resellerPrice) || Math.round((Number(product.price) || 0) * 0.85);
+      const customReseller = Number(product.resellerPrice);
+      // Reseller price must be strictly cheaper than normal price.
+      // If it equals/exceeds normal price or is 0, auto-calculate 15% discount.
+      if (customReseller > 0 && customReseller < normalPrice) {
+        return customReseller;
+      }
+      return Math.round(normalPrice * 0.85);
     }
-    return Number(product.price) || 0;
+    return normalPrice;
   };
 
   // Format IDR Helper
